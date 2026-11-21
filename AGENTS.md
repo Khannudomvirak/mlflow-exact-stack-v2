@@ -1,41 +1,292 @@
-# AGENTS.md
+# AGENTS.md — Lakehouse + MLflow Project
 
-Presentation project (paper 2310.08697, Group 6) answering the professor's follow-up: "where does MLflow fit in the lakehouse, and how would you build it?" V2 (the exact Docker stack) is the active deliverable; V1 (pip-only) is a frozen backup; plus the original deck. Not a git repo; no build/test/lint — verification means running the demo and keeping docs consistent.
+## What this project is
+
+Group 6 follow-up for paper **2310.08697** and the professor's question:
+
+> Where does MLflow fit in a data lakehouse, and how would you build it?
+
+The deliverable is a working demo of the exact architecture, not a production churn-prediction product. The lakehouse stores and versions the data; MLflow records which data version trained each model; Dremio and Tableau provide the BI path.
+
+The presentation has been recorded and is complete. Treat the current demo as the archived working version unless the user explicitly asks for changes.
+
+## Current public repo
+
+- Repository: <https://github.com/ThearaGithub/mlflow-exact-stack-v2>
+- Visibility: public
+- Branch: `main`
+- The repo contains the **complete V2 folder**: 27 files, including the Dremio JDBC jar, runtime state, generated chart, deck, script, explainer, workbook, and `AGENTS.md`.
+- The repo is the source of truth for the V2 demo. Clone it with:
+
+```bash
+git clone https://github.com/ThearaGithub/mlflow-exact-stack-v2.git
+```
+
+- Normal update on any machine:
+
+```bash
+git pull --ff-only
+```
+
+- Force local to match the cloud only when local edits can be discarded:
+
+```bash
+git fetch origin
+git reset --hard origin/main
+git clean -fd
+```
+
+The public repo includes a third-party Dremio JDBC jar. The user explicitly accepted that for easy cloning; check its license before any further redistribution.
+
+## One-sentence mental model
+
+MinIO stores files; Iceberg turns them into versioned tables; Nessie versions the catalog; Spark and Dremio read the same tables; Jupyter trains models; MLflow links each model to the exact data commit; Tableau visualizes the BI path.
 
 ## Layout
-- `Paper Presentation/` — original graded deck (frozen), paper PDF, rehearsal scripts.
-- `MLflow PIP Only V1/` — frozen backup of the first follow-up demo: deck, `followup_script.md`, `qa_prep.md`, and the pip-only `Demo/`. Do not edit; V2 is the active deliverable.
-- `MLflow Exact Stack V2/` — **active deliverable**: Docker replica of the professor's diagram (MinIO, Nessie, Spark/Jupyter, MLflow; Dremio optional profile, verified running) plus the live `Tableau_Churn_Dashboard.twb` (Tableau Desktop Free Edition; three churn charts over Dremio) and its own 7-slide deck (rebuilt 2026-10-25, Tableau update 2026-10-27; speaker notes are the talk track, Q&A slide is the answer set). Self-documented in its README and `START HERE.md`.
-- `building-presentation-on-2310-08697-paper.json` — 19 MB OpenCode session export, not project config. Do not read or parse.
-- `thread-*.md` — ~2 MB exported chat transcript from the session that built V2 and its deck. Useful history; not authoritative — verify against files.
 
-## PIP-only demo (V1)
-- Run `Demo/lakehouse_mlflow_demo.ipynb` top-to-bottom, then `Demo/See the Results.bat` (or run `mlflow ui` from inside `Demo/`).
-- Disposable per-run artifacts in `Demo/`: `lake_warehouse/`, `lake_catalog.db`, `mlruns/`, `mlflow.db`. Delete all four for a clean presentation state — stop the Jupyter kernel and dashboard first, they lock the `.db` files.
+- `MLflow Exact Stack V2/` — active deliverable and Git repo.
+- `MLflow PIP Only V1/` — frozen first pip-only demo. **Do not edit or sync V2 changes into it.**
+- `Paper Presentation/` — original graded deck, paper PDF, and rehearsal material. **Frozen.**
+- V2 files:
+  - `docker-compose.yml` — MinIO, Nessie, MLflow, Spark/Jupyter, Dremio profile.
+  - `Dockerfile.spark`, `Dockerfile.mlflow` — pinned images.
+  - `conf/spark-defaults.conf` — Nessie catalog and memory tuning.
+  - `data/churn_batch_1.csv`, `data/churn_batch_2.csv` — synthetic source data.
+  - `jobs/ingest.py` — Spark ingestion and two Nessie commits.
+  - `jobs/make_data.py` — deterministic data generator.
+  - `notebooks/lakehouse_mlflow.ipynb` — training, MLflow logging, registry alias.
+  - `notebooks/churn_by_contract.png` — generated chart (included in repo).
+  - `state/ingest_summary.json` — last-ingest commit hashes and row counts.
+  - `Tableau_Churn_Dashboard.twb` — live Tableau workbook over Dremio.
+  - `Tableau Driver/` — Dremio JDBC 26.0.5 jar and instructions.
+  - `Start Demo.bat` — Windows-only full-stack launcher.
+  - `Reset Demo.bat` — Windows-only destructive reset.
+  - `START HERE.md` — short universal setup guide.
+  - `Presentation_Script.md` — readable speaker script with speaker order.
+  - `Lakehouse_Explainer.png` — one-image visual explainer.
+  - `MLflow_Exact_Stack_V2_Presentation.pptx` — 7-slide deck; speaker notes are the original talk track.
+  - `README.md` — technical reference.
+  - `AGENTS.md` — this file.
 
-## Exact stack (V2)
-- Requires Docker Desktop (the single launcher `Start Demo.bat` starts it if installed), starts the full stack including Dremio, loads the two Iceberg versions only when Nessie does not match `state/ingest_summary.json`, and opens the deck + UIs. `Reset Demo.bat` (or `docker compose --profile dremio down -v`) wipes all volumes; force ingestion with the `spark-submit` command from the README.
-- The launcher's skip is deliberate: it preserves an existing lakehouse and saved notebook state. It does not execute the notebook. After a reset, click Run All once to create the two runs and v1 `champion`; on a preserved stack with the verified headless run, open the notebook and show them. Running it again adds versions (v2+) and moves `champion`. Slide 5 uses hash slots, not fixed values, so a reset does not invalidate the deck; the live notebook/MLflow show the new commits.
-- Dremio **is verified running on this laptop** (2026-10-25) with the WSL VM capped at 6 GB (`~/.wslconfig`: `memory=6GB`, `swap=4GB`). The old 7.4 GiB cap plus a Dremio image pull froze the host — keep the 6 GB cap, pull only while the stack is stopped, and don't run the notebook (Spark kernel) while Dremio is up. Measured with full stack + Dremio: ~3.3 GB of containers, ~0.7 GB host RAM free. Portable setup steps are in `README.md` and `START HERE.md`; use `Start Demo.bat` there and keep the 6 GB cap on 8 GB machines (10 GB on 16 GB). Bigger-machine setup is untested. Spark driver 768 MB, Nessie 512 MB heap, MLflow `--workers=1` are deliberate memory tuning — do not raise them.
-- The Tableau dashboard is included: `Tableau_Churn_Dashboard.twb` uses a custom SQL relation on `nessie.lakehouse.churn_features` over the Dremio native connector at `localhost:31010`; it has three bar charts and percentage labels. The Dremio JDBC driver is bundled in `Tableau Driver/` and must be copied to `%USERPROFILE%\Documents\My Tableau Repository\Drivers` before opening the workbook. Tableau Desktop Free Edition is enough; it is a desktop app outside Docker, so it is excluded from the 3.3 GB container figure. Proof: `assets/Tableau_Churn_Dashboard.png`.
-- Versions are pinned deliberately: Spark 3.5.9, Iceberg 1.11.0, Nessie 0.109.0, MLflow 3.17.2, Dremio 26.0.5, MinIO and aws-cli image digests. Do not bump casually.
-- Both demos bind port 5000, and V2 also holds 8888 (JupyterLab) and 9047 (Dremio, optional) — run one demo at a time.
+## Data
 
-## MLflow 3.17 gotchas (non-obvious)
-- Default tracking store is `sqlite:///mlflow.db` in the **process CWD**, not `mlruns/` (that folder holds only model artifacts). `mlflow ui` must run from the folder containing `mlflow.db`, or Experiments looks empty while runs exist elsewhere. A file-store backend would additionally require `MLFLOW_ALLOW_FILE_STORE=true`.
-- V1 logs `training_snapshot_id`; V2 logs `training_nessie_commit` (Nessie only exposes the current commit's snapshot; time travel uses the Nessie commit hash). Do not cross-copy parameter names between variants.
-- Windows cleanup: killing the `mlflow ui` parent leaves `python.exe ... multiprocessing-fork` children holding port 5000 — kill all `python.exe` matching `mlflow|uvicorn|multiprocessing-fork`; stop ipykernel before deleting `.db` files.
+The data is **synthetic**, not real customer data and not a real churn study.
 
-## .bat files
-- `Start Demo.bat` is the only launcher; it always uses the full Dremio profile. `Reset Demo.bat` is the only utility.
-- CRLF + ASCII only. The Write tool emits LF — write via PowerShell:
-  `[System.IO.File]::WriteAllText($path, (($lines -join "`r`n") + "`r`n"), [System.Text.Encoding]::ASCII)`
-- Every bat starts with `cd /d "%~dp0"` and pauses on failure so double-click errors stay visible.
+| Column | Meaning |
+|---|---|
+| `customer_id` | Fake customer number |
+| `tenure_months` | Customer tenure |
+| `monthly_charge` | Monthly bill |
+| `support_calls` | Support-call count |
+| `contract` | Contract type |
+| `internet_service` | Internet service type |
+| `churned` | Target: 1 = churned, 0 = stayed |
 
-## Environment
-- Windows + PowerShell. Demo packages are already installed in the system Python (`python`, 3.14 — `python3` does not exist): mlflow 3.17.1, pyiceberg, scikit-learn, pandas, pyarrow, jupyterlab. Do not create a venv for local runs.
+- Batch 1: **2,000 rows**
+- Batch 2: **500 new rows**
+- Current table after both commits: **2,500 rows**
+- No real people, PII, or production credentials.
 
-## Doc consistency is the only "test"
-- A V2 change must update every synced artifact: V2 deck speaker notes (the talk track), V2 README, and `START HERE.md` when setup behavior changes. V1 is frozen — do not sync edits into it.
-- Grep before and after edits for: `training_snapshot_id`, `training_nessie_commit`, `champion`, `models:/churn_classifier@champion`, notebook filenames, ports.
-- Known weak spots (fix if touched, never copy blindly): V2 has no standalone script/qa md (deck notes + Q&A slide carry it); reset and forced ingestion are manual CLI commands; the Dremio first-user + Nessie source setup is manual, not scripted; the Tableau driver install is a manual copy; the portable setup in `README.md`/`START HERE.md` is untested on a bigger machine. The Tableau workbook was verified on the 8 GB laptop with Dremio live, but not on a 16 GB machine.
+The data exists to prove the storage/versioning system: two batches create two Iceberg table versions, the model trains on the older commit, and the dashboard reads the current commit.
+
+## Architecture and flow
+
+```text
+CSV batches
+   -> Spark ingestion
+   -> Parquet files in MinIO (S3-compatible)
+   -> Iceberg table metadata and snapshots
+   -> Nessie catalog commits
+        -> Dremio reads current table -> Tableau dashboard
+        -> Spark reads same table -> Jupyter -> MLflow
+```
+
+- **MinIO** = S3-compatible object storage.
+- **Iceberg** = table format on Parquet (schema, snapshots, ACID, time travel).
+- **Nessie** = catalog with Git-style commits for the whole warehouse.
+- **Spark** = ingestion and ML compute.
+- **JupyterLab** = notebook environment.
+- **MLflow** = run tracking, model registry, champion alias, data-version lineage.
+- **Dremio** = SQL/BI engine.
+- **Tableau** = dashboard frontend.
+
+There are two reads of the **same table**, not duplicate copies for BI and ML.
+
+### Expected data versions
+
+- Commit A: 2,000 rows (training version).
+- Commit B: 2,500 rows (current/main version).
+
+The notebook trains `rf-100` and `rf-300`, logs `training_nessie_commit = A`, metrics, model artifacts, and sets the `champion` alias. `rf-100` is the better model in the verified run (ROC AUC about 0.799 vs 0.785) and is registry version 1; the alias points to it.
+
+## Run on Windows
+
+Requirements: Docker Desktop with WSL2, about 10 GB free disk for images, and free ports `5000`, `8888`, `9000`, `9001`, `19120`, `9047`, `31010`, `32010`.
+
+1. Double-click `Start Demo.bat`.
+2. It starts Docker Desktop if needed, starts the full Dremio profile, waits for services, ingests if Nessie does not match `state/ingest_summary.json`, and opens the deck/UIs.
+3. On a fresh machine or after a reset, open Jupyter and click **Run All** once to create the two MLflow runs and the `v1` champion.
+4. Set up Dremio and Tableau once (below).
+
+`Reset Demo.bat` wipes the four Docker volumes: MinIO data, Nessie catalog, MLflow database, and Dremio data. It does not delete host files.
+
+## Run on macOS or Linux
+
+There is no portable `.bat` launcher. Use Docker Compose directly; the stack is the same.
+
+```bash
+docker compose --profile dremio up -d --build
+
+# Wait until these answer:
+curl -f http://localhost:5000/health
+curl -f http://localhost:8888/api
+curl -f http://localhost:19120/api/v2/trees/main
+curl -f http://localhost:9000/minio/health/live
+```
+
+If the lakehouse is empty, or the Nessie commit does not match `state/ingest_summary.json`, create the two versions:
+
+```bash
+docker compose exec -T spark spark-submit --master "local[2]" /workspace/jobs/ingest.py
+```
+
+Then open:
+
+- JupyterLab: <http://localhost:8888/lab/tree/notebooks/lakehouse_mlflow.ipynb>
+- MLflow: <http://localhost:5000>
+- MinIO: <http://localhost:9001> (`minioadmin` / `minioadmin`)
+- Nessie: <http://localhost:19120/api/v2/trees/main>
+- Dremio: <http://localhost:9047>
+
+On macOS use Docker Desktop. On Linux use Docker Engine plus Compose v2. Do not rely on host Python; the demo runs in containers. Tableau Desktop is available on Windows/macOS but not Linux; the Dremio web UI still works on Linux.
+
+Reset on macOS/Linux:
+
+```bash
+docker compose --profile dremio down -v --remove-orphans
+```
+
+Then start again and run ingestion once. The notebook still needs **Run All** once for MLflow.
+
+## Dremio setup
+
+First time on a fresh machine or after a reset:
+
+1. Open <http://localhost:9047>.
+2. Create the admin user with username **`admin`** and a password of your choice. Keep the username `admin`; the Tableau workbook expects it.
+3. Add **Sources -> Nessie**:
+   - Name: `nessie`
+   - Endpoint: `http://nessie:19120/api/v2`
+   - Nessie authentication: **none**
+   - Storage: **AWS**
+   - AWS root path: `warehouse` (the fixed prefix already shows `s3://`; do not add a leading slash)
+   - Authentication: **AWS Access Key**
+   - Access key: `minioadmin`
+   - Secret: `minioadmin`
+   - Other properties:
+     - `fs.s3a.path.style.access=true`
+     - `fs.s3a.endpoint=minio:9000`
+     - `dremio.s3.compat=true`
+   - Uncheck **Encrypt connection**.
+4. Test:
+
+```sql
+SELECT * FROM nessie.lakehouse.churn_features LIMIT 20;
+```
+
+The current table should show 2,500 rows. Dremio's schema tree has been unreliable; custom SQL is the verified path.
+
+## Tableau setup
+
+The Dremio JDBC jar is included at:
+
+```text
+Tableau Driver/dremio-jdbc-driver-26.0.5.jar
+```
+
+Copy it to the Tableau driver folder:
+
+- Windows: `%USERPROFILE%\Documents\My Tableau Repository\Drivers`
+- macOS: `~/Documents/My Tableau Repository/Drivers`
+
+Restart Tableau, open `Tableau_Churn_Dashboard.twb`, enter the Dremio `admin` password, and show the **Churn Dashboard** tab. It has three charts: churn by contract, tenure group, and internet service.
+
+## Presentation
+
+- Deck: `MLflow_Exact_Stack_V2_Presentation.pptx` — 7 slides.
+- Original talk track: speaker notes on all 7 slides.
+- Readable script: `Presentation_Script.md`.
+- Visual explainer: `Lakehouse_Explainer.png`.
+- Slide 7 is the Q&A prep.
+
+Speaker order and timings:
+
+| Speaker | Slides | Section | Target |
+|---|---|---|---|
+| Khon Sotheara | 1–2 | Opening + architecture | 1:15 |
+| Khann Udomvirak | 3–4 | Six pieces + running proof | 1:30 |
+| Chea Sela | 5 | The MLflow layer | 1:00 |
+| Theng Sivchheng | 6–7 | Demo + Q&A lead | 1:15 |
+
+All four can join Q&A; Theng leads the close.
+
+Do not hardcode commit hashes in the deck: slide 5 uses `<training-hash>` and `<current-hash>` slots. Read live hashes from the notebook/MLflow.
+
+Plain-language answer if asked what the project is:
+
+> We are building a versioned storage system. The churn data is only the test load: it proves the same table can serve a dashboard and train a model, and MLflow can trace the model back to the exact data version.
+
+## Cross-OS rules
+
+- Use relative paths in docs; the repo is self-contained.
+- Keep directory and file names exact, including `Tableau Driver` (space) and `MLflow Exact Stack V2`.
+- The core stack is Docker Compose; `.bat` files are Windows conveniences only.
+- The `.bat` files must stay **CRLF + ASCII**. Do not rewrite them with LF.
+- On macOS/Linux, use `bash` commands shown above; do not assume PowerShell.
+- Docker on macOS/Windows uses Docker Desktop; Linux uses Docker Engine with Compose v2.
+- Tableau is desktop-only; the core lakehouse, MLflow, Dremio, and notebook run on any Docker host.
+- Ports and service names are identical across operating systems.
+- The demo credentials are local only: `minioadmin` / `minioadmin`.
+- No real secrets belong in this repo.
+
+## Invariants and gotchas
+
+- Versions are pinned deliberately: Spark 3.5.9, Iceberg 1.11.0, Nessie 0.109.0, MLflow 3.17.2, Dremio 26.0.5, plus MinIO/aws-cli digests. Do not bump casually.
+- `Start Demo.bat` skips ingestion only when Nessie's `main` commit matches `state/ingest_summary.json`. This preserves an existing demo.
+- The launcher does **not** execute the notebook.
+- On a preserved stack, do not click **Run All** unless a live run is intentional; it adds model versions and may move `champion`.
+- After a reset, click **Run All** once to recreate the two runs and the `v1` champion.
+- MLflow default tracking store is `sqlite:///mlflow.db` in the process CWD. In this stack it is the container's `/mlflow/mlflow.db`; artifacts go to MinIO.
+- V2 logs `training_nessie_commit`. V1 logs `training_snapshot_id`. Never cross-copy parameter names.
+- Loading the champion uses `models:/churn_classifier@champion`.
+- The Dremio first-user/source setup and Tableau driver copy are manual.
+- Dremio requires a 4 GB heap minimum. Spark driver 768 MB, Nessie 512 MB heap, and MLflow `--workers=1` are deliberate; do not raise them casually.
+- On the 8 GB laptop keep WSL at 6 GB (`memory=6GB`, `swap=4GB`) and do not run the Spark notebook and Dremio/Tableau at the same time. On 16 GB, 10 GB is a safe WSL cap; bigger-machine setup is still untested.
+- Full stack measured about 3.3 GB of containers, with roughly 0.5–0.7 GB host RAM free on the 8 GB laptop.
+- The public repo includes the generated chart, runtime state, AGENTS.md, and the third-party Dremio jar because the user explicitly wants a complete clone. Do not silently remove them.
+
+## Verification and change discipline
+
+Verification means running the demo, not just reading files.
+
+Before claiming a change works:
+
+1. `docker compose config` passes.
+2. Core endpoints return 200.
+3. Nessie main matches `state/ingest_summary.json` after ingestion.
+4. Dremio returns the expected 2,500 rows.
+5. MLflow has the expected runs, models, and champion alias.
+6. Tableau workbook opens against Dremio.
+7. Docs, deck notes, `Presentation_Script.md`, `START HERE.md`, and README remain consistent.
+
+Any V2 behavior change must update the synced artifacts: V2 README, `START HERE.md`, deck speaker notes, `Presentation_Script.md`, and this AGENTS.md when instructions change. V1 and the original paper presentation remain frozen.
+
+Do not claim a fresh 16 GB machine or a clean-machine end-to-end run is verified; only the 8 GB laptop path has been tested. Do not claim the demo is one-click from zero: the Dremio user/source and Tableau driver/password steps are still manual.
+
+## Current state
+
+- Presentation: recorded and done.
+- Local V2 folder: Git repo, clean, linked to `origin/main`.
+- Repo: public, 27 tracked files.
+- Stack: intentionally reset before packaging; no containers/volumes should be assumed running until `Start Demo.bat` or Compose is run.
+- ZIP may exist outside the repo for sharing, but the repo is the complete source.

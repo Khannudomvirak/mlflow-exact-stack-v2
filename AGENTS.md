@@ -362,7 +362,7 @@ Do not claim a fresh 16 GB machine or a clean-machine end-to-end run is verified
 
 - Presentation: recorded and done.
 - Working directory: session moved to `C:\Theara\YEAR 3\SEMESTER 1\PP`; repo at `Data Lakehouse\MLflow Exact Stack V2`.
-- Local repo: clean, synced with `origin/main` at `39f33aa`; 27 tracked files.
+- Local repo: clean, synced with `origin/main` (check `git log -1` for the current commit); 27 tracked files.
 - Repo: public.
 - Stack: intentionally reset; no containers or volumes should be assumed running until `Start Demo.bat` or Compose is run.
 - ZIP: not present; the public repo is the complete clone source.

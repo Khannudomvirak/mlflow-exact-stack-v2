@@ -10,6 +10,10 @@ The deliverable is a working demo of the exact architecture, not a production ch
 
 The presentation has been recorded and is complete. Treat the current demo as the archived working version unless the user explicitly asks for changes.
 
+## Workspace
+
+The active session runs from `C:\Theara\YEAR 3\SEMESTER 1\PP`, not from `PP\Data Lakehouse` (moved 2026-11-22). The repo is reached as `Data Lakehouse/MLflow Exact Stack V2`. Moving a session only changes its directory pointer; no files or history are copied.
+
 ## Current public repo
 
 - Repository: <https://github.com/ThearaGithub/mlflow-exact-stack-v2>
@@ -44,9 +48,9 @@ MinIO stores files; Iceberg turns them into versioned tables; Nessie versions th
 
 ## Layout
 
-- `MLflow Exact Stack V2/` — active deliverable and Git repo.
-- `MLflow PIP Only V1/` — frozen first pip-only demo. **Do not edit or sync V2 changes into it.**
-- `Paper Presentation/` — original graded deck, paper PDF, and rehearsal material. **Frozen.**
+- `Data Lakehouse/MLflow Exact Stack V2/` — active deliverable and Git repo.
+- `Data Lakehouse/MLflow PIP Only V1/` — frozen first pip-only demo. **Do not edit or sync V2 changes into it.**
+- `Data Lakehouse/Paper Presentation/` — original graded deck, paper PDF, and rehearsal material. **Frozen.**
 - V2 files:
   - `docker-compose.yml` — MinIO, Nessie, MLflow, Spark/Jupyter, Dremio profile.
   - `Dockerfile.spark`, `Dockerfile.mlflow` — pinned images.
@@ -89,6 +93,20 @@ The data is **synthetic**, not real customer data and not a real churn study.
 
 The data exists to prove the storage/versioning system: two batches create two Iceberg table versions, the model trains on the older commit, and the dashboard reads the current commit.
 
+### Bringing your own data
+
+The demo needs no external data—both batches ship in the repo. If someone brings their own, the contract is a CSV with this header:
+
+`customer_id,tenure_months,monthly_charge,support_calls,contract,internet_service,churned`
+
+- `customer_id` is an ID only; it is not a model feature.
+- `churned` must be numeric `0`/`1`.
+- The notebook's features are fixed: `tenure_months`, `monthly_charge`, `support_calls`, `contract`, `internet_service`.
+- `jobs/ingest.py` hardcodes the two filenames and asserts 2,000 then 2,500 rows. Real data requires editing those paths/assertions or keeping the same row counts.
+- The existing chart groups contracts as `month-to-month`, `one-year`, `two-year`; other labels train but may leave chart groups empty.
+
+There is no upload UI and no auth: Spark reads the CSV from `data/`. "Using" the project means running the lifecycle, not submitting data to a service.
+
 ## Architecture and flow
 
 ```text
@@ -130,6 +148,16 @@ Requirements: Docker Desktop with WSL2, about 10 GB free disk for images, and fr
 
 `Reset Demo.bat` wipes the four Docker volumes: MinIO data, Nessie catalog, MLflow database, and Dremio data. It does not delete host files.
 
+### Distribution for friends (Windows-first)
+
+Most users are on Windows and that path is the best supported:
+
+- They install only **Docker Desktop with WSL2**. MinIO, Nessie, Spark/Jupyter, MLflow and Dremio all run as containers.
+- Clone the public repo or use GitHub's **Code -> Download ZIP**. `Start Demo.bat` resolves its own folder with `%~dp0`, so the folder name and location do not matter.
+- There are no hardcoded machine paths in the launchers, compose file, jobs, or notebook; docs use `%USERPROFILE%` placeholders only.
+- First run still needs notebook **Run All**, the one-time Dremio admin/source setup, and optionally Tableau.
+- Requirements: ~10 GB free disk, 8 GB RAM minimum (16 GB comfortable), the ports listed above, and firewall permission for Docker.
+
 ## Run on macOS or Linux
 
 There is no portable `.bat` launcher. Use Docker Compose directly; the stack is the same.
@@ -168,6 +196,15 @@ docker compose --profile dremio down -v --remove-orphans
 
 Then start again and run ingestion once. The notebook still needs **Run All** once for MLflow.
 
+### Linux capability notes
+
+- The whole Docker stack runs on Linux: MinIO, Nessie, Spark/Jupyter, MLflow and Dremio. Dremio's UI is at `http://localhost:9047`.
+- **Tableau Desktop is the only hard blocker**—there is no Linux build. Opening the `.twb` needs Windows/macOS or a VM.
+- Dremio's UI shows **tables and SQL results, not charts**. Visuals come from Tableau, `assets/Tableau_Churn_Dashboard.png`, or the notebook's matplotlib chart.
+- PowerPoint desktop is also Windows/macOS-only; LibreOffice Impress or PowerPoint for the web can open the deck.
+- `Start Demo.bat` / `Reset Demo.bat` are Windows conveniences; on Linux use the Compose commands above.
+- Do not add Metabase/Superset just to replace Tableau on Linux: extra RAM and community connectors with no benefit for the class demo.
+
 ## Dremio setup
 
 First time on a fresh machine or after a reset:
@@ -195,6 +232,15 @@ SELECT * FROM nessie.lakehouse.churn_features LIMIT 20;
 ```
 
 The current table should show 2,500 rows. Dremio's schema tree has been unreliable; custom SQL is the verified path.
+
+### Account lifecycle
+
+- `Start Demo.bat` does **not** create a Dremio account today. It only waits for port 9047 and opens the UI; the first admin is created manually.
+- The account lives in the `dremio-data` volume and survives restarts and rebuilds.
+- `Reset Demo.bat` runs `down -v`, deleting the account and all Dremio data.
+- Any future auto-bootstrap must be idempotent: create an admin only when none exists, never on every start.
+- Password, name and email can be changed later (admin: Settings -> Users; own password in account settings). Keep the username `admin`—the Tableau workbook expects it, and changing it requires editing the Tableau connection.
+- For custom credentials that survive resets, read them from an untracked `.env`.
 
 ## Tableau setup
 
@@ -264,6 +310,34 @@ Plain-language answer if asked what the project is:
 - On the 8 GB laptop keep WSL at 6 GB (`memory=6GB`, `swap=4GB`) and do not run the Spark notebook and Dremio/Tableau at the same time. On 16 GB, 10 GB is a safe WSL cap; bigger-machine setup is still untested.
 - Full stack measured about 3.3 GB of containers, with roughly 0.5–0.7 GB host RAM free on the 8 GB laptop.
 - The public repo includes the generated chart, runtime state, AGENTS.md, and the third-party Dremio jar because the user explicitly wants a complete clone. Do not silently remove them.
+- `Start Demo.bat` does not create a Dremio user; the first admin is manual and persists in `dremio-data`.
+- Jupyter and MLflow have no authentication in this stack; keep it local-only and never expose the ports publicly.
+- Dremio's UI is a SQL/table tool, not a chart/dashboard tool.
+
+## Teacher feedback: autologin and Vault
+
+Two separate asks; do not merge them into one feature.
+
+### Autologin (reduce typing)
+
+Agreed plan, **not implemented yet** (decision pending as of 2026-11-22):
+
+1. Auto-provision Dremio on first start: create the `admin` user through the bootstrap REST endpoint, then add the Nessie source through the catalog API with the settings above. Idempotent: skip when already present.
+2. Auto-run the notebook only when MLflow has no runs: `jupyter nbconvert --execute --inplace notebooks/lakehouse_mlflow.ipynb`. Never auto-run on a preserved stack.
+3. Optional: generate a random local Dremio password into an untracked `.env` so the public repo holds no fixed secret; print it once for Tableau.
+4. Optional: one launcher/landing page that opens Jupyter, MLflow, Dremio and MinIO.
+
+Jupyter and MLflow already have no login. Tableau's Dremio password prompt and any Tableau account sign-in cannot be reliably automated; treat them as the only manual step.
+
+### Vault and service-to-service auth
+
+The teacher also mentioned service-to-service identity and HashiCorp Vault. Project position:
+
+- **Do not implement full Vault/S2S in the demo.** Vault manages machine secrets; it does not remove human UI logins. mTLS, per-service identities, policies and rotation are days of work and another failure point on an 8 GB laptop.
+- Production story for Q&A/a slide: each service gets its own identity, Vault issues short-lived least-privilege credentials, secrets rotate and are audited. The demo keeps fixed local credentials for simplicity.
+- Only if explicitly graded: add a minimal Vault dev container holding MinIO creds in KV, with one init script reading them. Do not attempt dynamic secrets or mTLS for the class demo.
+
+Do not start either implementation until the user says `go`.
 
 ## Verification and change discipline
 
@@ -278,6 +352,7 @@ Before claiming a change works:
 5. MLflow has the expected runs, models, and champion alias.
 6. Tableau workbook opens against Dremio.
 7. Docs, deck notes, `Presentation_Script.md`, `START HERE.md`, and README remain consistent.
+8. If autologin is added: a second start does not duplicate the Dremio user or re-run the notebook, and a reset recreates exactly one admin.
 
 Any V2 behavior change must update the synced artifacts: V2 README, `START HERE.md`, deck speaker notes, `Presentation_Script.md`, and this AGENTS.md when instructions change. V1 and the original paper presentation remain frozen.
 
@@ -286,7 +361,9 @@ Do not claim a fresh 16 GB machine or a clean-machine end-to-end run is verified
 ## Current state
 
 - Presentation: recorded and done.
-- Local V2 folder: Git repo, clean, linked to `origin/main`.
-- Repo: public, 27 tracked files.
-- Stack: intentionally reset before packaging; no containers/volumes should be assumed running until `Start Demo.bat` or Compose is run.
-- ZIP may exist outside the repo for sharing, but the repo is the complete source.
+- Working directory: session moved to `C:\Theara\YEAR 3\SEMESTER 1\PP`; repo at `Data Lakehouse\MLflow Exact Stack V2`.
+- Local repo: clean, synced with `origin/main` at `39f33aa`; 27 tracked files.
+- Repo: public.
+- Stack: intentionally reset; no containers or volumes should be assumed running until `Start Demo.bat` or Compose is run.
+- ZIP: not present; the public repo is the complete clone source.
+- Autologin and Vault: discussed and scoped, **not implemented**; awaiting the user's `go`.

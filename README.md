@@ -299,6 +299,13 @@ new password.
   password chosen in Dremio; the workbook connects to `localhost:31010`.
   Recreate the Dremio source after a reset.
 
+### Tech Stack Logos
+
+![dse](assets/dse_logo.png)
+
+![fe](assets/fe_logo.png)
+
+![rupp](assets/rupp_logo.png)
 ## Files
 
 ```

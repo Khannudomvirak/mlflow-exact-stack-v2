@@ -84,10 +84,10 @@ if "%HAS_RUNS%"=="0" (
 echo   3. MLflow: experiment churn-lakehouse-exact-stack - open rf-100 (v1 champion).
 echo   MinIO: http://localhost:9001 - login minioadmin / minioadmin
 echo   4. Dremio: http://localhost:9047 - admin and the Nessie source are ready.
-echo        Log in as admin; the password is in .env (printed on the first run).
+echo        Log in as admin / admin123.
 echo        Query: SELECT * FROM nessie.lakehouse.churn_features LIMIT 20;
 echo   5. Tableau: open Tableau_Churn_Dashboard.twb (driver in Tableau Driver).
-echo        Use the same Dremio admin password; tick "Save password" to stop retyping.
+echo        Use the same Dremio password (admin123); tick "Save password" to stop retyping.
 echo.
 echo   Close other heavy apps before the demo.
 echo   If Docker feels tight, see README.md for WSL memory guidance.

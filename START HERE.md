@@ -53,7 +53,9 @@ If you click **Run All** again, it adds versions and moves the champion.
 
 ## 5. Dremio (the BI box)
 
-Open <http://localhost:9047> and log in as **`admin`** with the password in `.env`. `Start Demo.bat` prints it once on the first run, and it is the same password Tableau asks for later. It is not the MinIO login.
+Open <http://localhost:9047> and log in as **`admin`** / **`admin123`**. That is the password Tableau asks for later. It is not the MinIO login.
+
+Dremio rejects the bare word `admin` (8 characters minimum, with a digit), which is why the password carries `123`. Set `DREMIO_PASSWORD` in `.env` if you want a different one.
 
 `Start Demo.bat` also creates the `nessie` source through the Dremio REST API, so there is no first-user screen and no source form to fill in. Running it a second time changes nothing.
 

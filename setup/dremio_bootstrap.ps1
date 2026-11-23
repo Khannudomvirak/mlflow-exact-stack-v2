@@ -13,6 +13,12 @@
 #   GET  /api/v3/catalog/by-path/nessie -> 404 when absent
 #   POST /api/v3/catalog              -> source entity; config keys below
 #
+# Demo credentials are fixed so nothing has to be looked up on stage:
+#   user admin / password admin123
+# Dremio rejects weaker first-user passwords (verified: 'admin' -> 400 "must be
+# at least 8 letters long, must contain at least one number and one letter").
+# A pre-existing .env can override either value.
+#
 # Exit codes: 0 = provisioned or already provisioned, 1 = could not provision.
 
 $ErrorActionPreference = 'Stop'
@@ -63,18 +69,18 @@ function Get-ErrorBody($errorRecord) {
 }
 
 # --- credentials -------------------------------------------------------------
-# The password lives in an untracked .env so the public repo holds no fixed
-# secret. It is generated once, printed once for Tableau, and reused after that.
+# Fixed demo credentials: admin / admin123. Dremio refuses 'admin' itself, so
+# this is the closest it gets to admin/admin. Values already in .env win, which
+# is how a machine with an older password keeps working without a reset.
 $envValues = Read-DotEnv
 $user = $envValues['DREMIO_USER']
 if (-not $user) { $user = 'admin' }
 
 $password = $envValues['DREMIO_PASSWORD']
-$generated = $false
+$chosenHere = $false
 if (-not $password) {
-    $alphabet = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-    $password = -join (1..20 | ForEach-Object { $alphabet[(Get-Random -Maximum $alphabet.Length)] })
-    $generated = $true
+    $password = 'admin123'
+    $chosenHere = $true
 }
 
 $awsKey = $envValues['MINIO_ROOT_USER']
@@ -135,13 +141,13 @@ function New-DremioFirstUser([string]$name, [string]$secret) {
 # --- user --------------------------------------------------------------------
 # Log in first: if the account is there, nothing is created and nothing changes.
 $token = $null
-if (-not $generated) {
+if (-not $chosenHere) {
     $token = Get-DremioToken $user $password
 }
 if (-not $token) {
     if (New-DremioFirstUser $user $password) {
         Write-Note "Created the Dremio user '$user'."
-        if ($generated) {
+        if ($chosenHere) {
             Add-DotEnvLine 'DREMIO_USER' $user
             Add-DotEnvLine 'DREMIO_PASSWORD' $password
             Write-Note "Saved DREMIO_USER / DREMIO_PASSWORD to .env (git-ignored)."

@@ -62,10 +62,11 @@ docker compose --profile dremio up -d
 
 On Windows `Start Demo.bat` does this for you: `setup/dremio_bootstrap.ps1`
 creates the **`admin`** user and the **Nessie** source through the Dremio REST
-API, taking the password from `.env` (generated on the first run and printed
-once). Nothing is typed in the UI, and a second start creates nothing. Open
-`http://localhost:9047` and log in as `admin` - that password is also the one
-Tableau asks for.
+API. Nothing is typed in the UI, and a second start creates nothing. Log in at
+`http://localhost:9047` as **`admin`** / **`admin123`** - that is also the
+password Tableau asks for. Dremio refuses the bare word `admin` (minimum 8
+characters with a digit), hence `admin123`; set `DREMIO_PASSWORD` in `.env` to
+override it.
 
 The manual steps below are the fallback for macOS/Linux and for an existing
 `admin` whose password differs from `.env`: create the first user with username
@@ -96,9 +97,9 @@ To open it on another machine:
    if it was already open. Tableau does not ship the Dremio driver. The
    complete demo—including the 48 MB driver jar—is in both the ZIP and the
    GitHub clone.
-3. Start the full stack, open the workbook, and enter the Dremio `admin`
-   password from `.env` when prompted; tick **Save password** so it stops
-   asking. Dremio must be running.
+3. Start the full stack, open the workbook, and enter `admin123` for the Dremio
+   `admin` user when prompted; tick **Save password** so it stops asking. Dremio
+   must be running.
 4. Open the **Churn Dashboard** tab. The proof screenshot is
    `assets/Tableau_Churn_Dashboard.png`.
 

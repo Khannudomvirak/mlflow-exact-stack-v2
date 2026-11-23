@@ -208,7 +208,7 @@ Then start again and run ingestion once. The notebook still needs **Run All** on
 
 ## Dremio setup
 
-On Windows `Start Demo.bat` provisions Dremio: `setup/dremio_bootstrap.ps1` creates the `admin` user and the `nessie` source through the REST API (launcher step `[3b/5]`) before the browser tabs open, so no first-user screen and no source form appear. It reads the password from `.env`, generating and printing it once on the first run.
+On Windows `Start Demo.bat` provisions Dremio: `setup/dremio_bootstrap.ps1` creates the `admin` user and the `nessie` source through the REST API (launcher step `[3b/5]`) before the browser tabs open, so no first-user screen and no source form appear. Credentials are the fixed demo pair `admin` / `admin123`: `admin` alone is rejected (8 characters minimum plus a digit). A `DREMIO_PASSWORD` already in `.env` overrides it, which is how an older machine keeps its password without a reset.
 
 The manual steps below are the fallback only: macOS/Linux, a `Provisioning skipped` line in the console, or an existing `admin` whose password differs from `.env`.
 
@@ -342,7 +342,7 @@ Accepted behaviour:
 - `Start Demo.bat` calls the bootstrap after Dremio answers on 9047 and **before** the browser tabs open, so the UI never races the API.
 - The bootstrap logs in first; if `admin` already answers, nothing is created. If no user exists, it calls the first-user endpoint once.
 - The Nessie source is created only when `catalog/by-path/nessie` returns 404, so a second start never duplicates it.
-- The password comes from `.env` (`DREMIO_USER`, `DREMIO_PASSWORD`), generated on first run and printed once for Tableau. `.env` stays untracked.
+- Credentials are `admin` / `admin123`, mirrored into `.env` (`DREMIO_USER`, `DREMIO_PASSWORD`) so one file answers both Dremio and Tableau. `.env` stays untracked; values already in it win.
 - If `admin` exists with a different password than `.env` holds, the bootstrap prints a warning and exits without changing anything. Recovery is setting `DREMIO_PASSWORD` or running `Reset Demo.bat`.
 
 Implementation notes, verified live against Dremio 26.0.5 on 2026-11-23:

@@ -63,6 +63,7 @@ MinIO stores files; Iceberg turns them into versioned tables; Nessie versions th
   - `state/ingest_summary.json` — last-ingest commit hashes and row counts.
   - `Tableau_Churn_Dashboard.twb` — live Tableau workbook over Dremio.
   - `Tableau Driver/` — Dremio JDBC 26.0.5 jar and instructions.
+  - `setup/dremio_bootstrap.ps1` — idempotent Dremio provisioning (admin user + Nessie source); called by the launcher. Not required on macOS/Linux.
   - `Start Demo.bat` — Windows-only full-stack launcher.
   - `Reset Demo.bat` — Windows-only destructive reset.
   - `START HERE.md` — short universal setup guide.
@@ -144,7 +145,7 @@ Requirements: Docker Desktop with WSL2, about 10 GB free disk for images, and fr
 1. Double-click `Start Demo.bat`.
 2. It starts Docker Desktop if needed, starts the full Dremio profile, waits for services, ingests if Nessie does not match `state/ingest_summary.json`, and opens the deck/UIs.
 3. On a fresh machine or after a reset, open Jupyter and click **Run All** once to create the two MLflow runs and the `v1` champion.
-4. Set up Dremio and Tableau once (below).
+4. Dremio provisions itself on start (below); set up Tableau once.
 
 `Reset Demo.bat` wipes the four Docker volumes: MinIO data, Nessie catalog, MLflow database, and Dremio data. It does not delete host files.
 
@@ -155,7 +156,7 @@ Most users are on Windows and that path is the best supported:
 - They install only **Docker Desktop with WSL2**. MinIO, Nessie, Spark/Jupyter, MLflow and Dremio all run as containers.
 - Clone the public repo or use GitHub's **Code -> Download ZIP**. `Start Demo.bat` resolves its own folder with `%~dp0`, so the folder name and location do not matter.
 - There are no hardcoded machine paths in the launchers, compose file, jobs, or notebook; docs use `%USERPROFILE%` placeholders only.
-- First run still needs notebook **Run All**, the one-time Dremio admin/source setup, and optionally Tableau.
+- First run still needs notebook **Run All** and optionally Tableau; Dremio provisions itself on start.
 - Requirements: ~10 GB free disk, 8 GB RAM minimum (16 GB comfortable), the ports listed above, and firewall permission for Docker.
 
 ## Run on macOS or Linux
@@ -207,6 +208,10 @@ Then start again and run ingestion once. The notebook still needs **Run All** on
 
 ## Dremio setup
 
+On Windows `Start Demo.bat` provisions Dremio: `setup/dremio_bootstrap.ps1` creates the `admin` user and the `nessie` source through the REST API (launcher step `[3b/5]`) before the browser tabs open, so no first-user screen and no source form appear. It reads the password from `.env`, generating and printing it once on the first run.
+
+The manual steps below are the fallback only: macOS/Linux, a `Provisioning skipped` line in the console, or an existing `admin` whose password differs from `.env`.
+
 First time on a fresh machine or after a reset:
 
 1. Open <http://localhost:9047>.
@@ -235,10 +240,10 @@ The current table should show 2,500 rows. Dremio's schema tree has been unreliab
 
 ### Account lifecycle
 
-- `Start Demo.bat` does **not** create a Dremio account today. It only waits for port 9047 and opens the UI; the first admin is created manually.
+- `Start Demo.bat` creates the Dremio account when none exists (`PUT /apiv2/bootstrap/firstuser`). It never modifies an existing account.
 - The account lives in the `dremio-data` volume and survives restarts and rebuilds.
 - `Reset Demo.bat` runs `down -v`, deleting the account and all Dremio data.
-- Any future auto-bootstrap must be idempotent: create an admin only when none exists, never on every start.
+- The bootstrap is idempotent: it logs in first and creates a user only when none exists, so a second start changes nothing.
 - Password, name and email can be changed later (admin: Settings -> Users; own password in account settings). Keep the username `admin`—the Tableau workbook expects it, and changing it requires editing the Tableau connection.
 - For custom credentials that survive resets, read them from an untracked `.env`.
 
@@ -305,12 +310,12 @@ Plain-language answer if asked what the project is:
 - MLflow default tracking store is `sqlite:///mlflow.db` in the process CWD. In this stack it is the container's `/mlflow/mlflow.db`; artifacts go to MinIO.
 - V2 logs `training_nessie_commit`. V1 logs `training_snapshot_id`. Never cross-copy parameter names.
 - Loading the champion uses `models:/churn_classifier@champion`.
-- The Dremio first-user/source setup and Tableau driver copy are manual.
+- The Tableau driver copy, the Tableau password prompt and notebook **Run All** are manual. Dremio's user and Nessie source are provisioned by `Start Demo.bat`.
 - Dremio requires a 4 GB heap minimum. Spark driver 768 MB, Nessie 512 MB heap, and MLflow `--workers=1` are deliberate; do not raise them casually.
 - On the 8 GB laptop keep WSL at 6 GB (`memory=6GB`, `swap=4GB`) and do not run the Spark notebook and Dremio/Tableau at the same time. On 16 GB, 10 GB is a safe WSL cap; bigger-machine setup is still untested.
 - Full stack measured about 3.3 GB of containers, with roughly 0.5–0.7 GB host RAM free on the 8 GB laptop.
 - The public repo includes the generated chart, runtime state, AGENTS.md, and the third-party Dremio jar because the user explicitly wants a complete clone. Do not silently remove them.
-- `Start Demo.bat` does not create a Dremio user; the first admin is manual and persists in `dremio-data`.
+- `Start Demo.bat` creates the Dremio user and Nessie source only when missing; both persist in `dremio-data` and survive restarts and rebuilds.
 - Jupyter and MLflow have no authentication in this stack; keep it local-only and never expose the ports publicly.
 - Dremio's UI is a SQL/table tool, not a chart/dashboard tool.
 
@@ -320,14 +325,36 @@ Two separate asks; do not merge them into one feature.
 
 ### Autologin (reduce typing)
 
-Agreed plan, **not implemented yet** (decision pending as of 2026-11-22):
+**Decision 2026-11-23: build the Dremio part only.** The user approved a narrow scope and rejected the rest.
 
-1. Auto-provision Dremio on first start: create the `admin` user through the bootstrap REST endpoint, then add the Nessie source through the catalog API with the settings above. Idempotent: skip when already present.
-2. Auto-run the notebook only when MLflow has no runs: `jupyter nbconvert --execute --inplace notebooks/lakehouse_mlflow.ipynb`. Never auto-run on a preserved stack.
-3. Optional: generate a random local Dremio password into an untracked `.env` so the public repo holds no fixed secret; print it once for Tableau.
-4. Optional: one launcher/landing page that opens Jupyter, MLflow, Dremio and MinIO.
+| Item | Decision |
+|---|---|
+| Auto-provision the Dremio `admin` user (bootstrap REST) | **Build** |
+| Auto-add the Dremio `nessie` source (catalog API) | **Build** |
+| Generated Dremio password in an untracked `.env` | **Build** |
+| Auto-run the notebook (`nbconvert --execute`) | **Rejected** — a manual `Run All` is safer; an auto-run can add runs and move `champion` |
+| Landing page for the four UIs | **Rejected** — out of scope; the launcher already opens the tabs |
 
-Jupyter and MLflow already have no login. Tableau's Dremio password prompt and any Tableau account sign-in cannot be reliably automated; treat them as the only manual step.
+Why only one service needs this: of the five Compose services, only Dremio has an account anyone creates. MinIO's credentials are `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` env values read by `minio`, `minio-init`, `nessie` and `mlflow` alike, Nessie has no auth, MLflow has no auth, and Jupyter runs with an empty token and password. So "autologin" here is two API calls, not an identity system.
+
+Accepted behaviour:
+
+- `Start Demo.bat` calls the bootstrap after Dremio answers on 9047 and **before** the browser tabs open, so the UI never races the API.
+- The bootstrap logs in first; if `admin` already answers, nothing is created. If no user exists, it calls the first-user endpoint once.
+- The Nessie source is created only when `catalog/by-path/nessie` returns 404, so a second start never duplicates it.
+- The password comes from `.env` (`DREMIO_USER`, `DREMIO_PASSWORD`), generated on first run and printed once for Tableau. `.env` stays untracked.
+- If `admin` exists with a different password than `.env` holds, the bootstrap prints a warning and exits without changing anything. Recovery is setting `DREMIO_PASSWORD` or running `Reset Demo.bat`.
+
+Implementation notes, verified live against Dremio 26.0.5 on 2026-11-23:
+
+- `PUT /apiv2/bootstrap/firstuser` creates the first user; `POST` answers 405 with `Allow: OPTIONS,PUT`.
+- Readiness is a **401** on an unauthenticated `GET /api/v3/catalog`. The port opens and the server answers HTTP about 25 s earlier, and a bootstrap attempt in that window is rejected with **400** - the same status as "user already exists", which is why the gate cannot be "any HTTP response".
+- Login is `POST /apiv2/login`; Dremio 26 returns a short token sent as `Authorization: _dremio<token>` (not a JWT).
+- Source existence is `GET /api/v3/catalog/by-path/nessie` (404 when absent); creation is `POST /api/v3/catalog` with `entityType: source`.
+- The Nessie config keys come from `GET /api/v3/source/type/NESSIE`: `nessieEndpoint`, `nessieAuthType: NONE`, `storageProvider: AWS`, `awsRootPath: warehouse`, `credentialType: ACCESS_KEY`, `awsAccessKey`, `awsAccessSecret`, `secure: false`, `propertyList`. It is `awsRootPath`, **not** `rootPath`.
+- Verified end to end on clean volumes: bootstrap -> ingestion -> `SELECT COUNT(*) FROM nessie.lakehouse.churn_features` returned **2,500** through the auto-created source.
+
+Still manual afterwards: one `Run All` click for MLflow, Tableau's Dremio password prompt, and the one-time Tableau driver copy. Dremio's own login screen is **not** avoidable — creating the account through the API cannot hand a browser a session, so the password is still typed once per session/token expiry.
 
 ### Vault and service-to-service auth
 
@@ -337,7 +364,7 @@ The teacher also mentioned service-to-service identity and HashiCorp Vault. Proj
 - Production story for Q&A/a slide: each service gets its own identity, Vault issues short-lived least-privilege credentials, secrets rotate and are audited. The demo keeps fixed local credentials for simplicity.
 - Only if explicitly graded: add a minimal Vault dev container holding MinIO creds in KV, with one init script reading them. Do not attempt dynamic secrets or mTLS for the class demo.
 
-Do not start either implementation until the user says `go`.
+
 
 ## Verification and change discipline
 
@@ -352,11 +379,11 @@ Before claiming a change works:
 5. MLflow has the expected runs, models, and champion alias.
 6. Tableau workbook opens against Dremio.
 7. Docs, deck notes, `Presentation_Script.md`, `START HERE.md`, and README remain consistent.
-8. If autologin is added: a second start does not duplicate the Dremio user or re-run the notebook, and a reset recreates exactly one admin.
+8. A second start does not duplicate the Dremio user or the Nessie source, and a reset recreates exactly one admin (verified 2026-11-23).
 
 Any V2 behavior change must update the synced artifacts: V2 README, `START HERE.md`, deck speaker notes, `Presentation_Script.md`, and this AGENTS.md when instructions change. V1 and the original paper presentation remain frozen.
 
-Do not claim a fresh 16 GB machine or a clean-machine end-to-end run is verified; only the 8 GB laptop path has been tested. Do not claim the demo is one-click from zero: the Dremio user/source and Tableau driver/password steps are still manual.
+Do not claim a fresh 16 GB machine or a clean-machine end-to-end run is verified; only the 8 GB laptop path has been tested. Do not claim the demo is one-click from zero: notebook **Run All**, the Tableau driver copy and Tableau's password prompt are still manual.
 
 ## Current state
 
@@ -366,4 +393,4 @@ Do not claim a fresh 16 GB machine or a clean-machine end-to-end run is verified
 - Repo: public.
 - Stack: intentionally reset; no containers or volumes should be assumed running until `Start Demo.bat` or Compose is run.
 - ZIP: not present; the public repo is the complete clone source.
-- Autologin and Vault: discussed and scoped, **not implemented**; awaiting the user's `go`.
+- Autologin: Dremio provisioning **implemented and verified** 2026-11-23 (admin user, Nessie source, `.env` password, launcher step `[3b/5]`). Notebook auto-run and the landing page were rejected; Vault stays the production story only.

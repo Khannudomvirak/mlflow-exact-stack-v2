@@ -60,7 +60,15 @@ docker compose --profile dremio pull dremio
 docker compose --profile dremio up -d
 ```
 
-Then open `http://localhost:9047`, create the first user with username
+On Windows `Start Demo.bat` does this for you: `setup/dremio_bootstrap.ps1`
+creates the **`admin`** user and the **Nessie** source through the Dremio REST
+API, taking the password from `.env` (generated on the first run and printed
+once). Nothing is typed in the UI, and a second start creates nothing. Open
+`http://localhost:9047` and log in as `admin` - that password is also the one
+Tableau asks for.
+
+The manual steps below are the fallback for macOS/Linux and for an existing
+`admin` whose password differs from `.env`: create the first user with username
 **`admin`** and your own password, and add a **Nessie** source at
 `http://nessie:19120/api/v2` with Nessie authentication **none**. In **Storage**
 choose **AWS**, then enter `warehouse` after the fixed `s3://` prefix (the full
@@ -88,8 +96,9 @@ To open it on another machine:
    if it was already open. Tableau does not ship the Dremio driver. The
    complete demo—including the 48 MB driver jar—is in both the ZIP and the
    GitHub clone.
-3. Start the full stack, open the workbook, and enter the password chosen for
-   the Dremio `admin` user when prompted. Dremio must be running.
+3. Start the full stack, open the workbook, and enter the Dremio `admin`
+   password from `.env` when prompted; tick **Save password** so it stops
+   asking. Dremio must be running.
 4. Open the **Churn Dashboard** tab. The proof screenshot is
    `assets/Tableau_Churn_Dashboard.png`.
 
@@ -124,8 +133,8 @@ is `assets/Tableau_Churn_Dashboard.png`. Capture a Dremio query screenshot as
 
 ### One click (recommended)
 
-**Start here:** open **`START HERE.md`**; it has the MinIO login, Dremio setup,
-and Run All step. A fresh machine does not need a reset.
+**Start here:** open **`START HERE.md`**; it has the MinIO login, the Dremio
+password location, and the Run All step. A fresh machine does not need a reset.
 
 Double-click **`Start Demo.bat`**. It starts Docker Desktop if it is not
 already running, builds and starts the full stack including Dremio, waits for

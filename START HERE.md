@@ -22,7 +22,7 @@ On a fresh machine, skip this step. If Docker already has old volumes, either:
 docker compose --profile dremio down -v
 ```
 
-This wipes the old MinIO data, Nessie catalog, MLflow database, and Dremio data. It also removes Dremio's admin user and Nessie source, so do it before creating them. Do not reset after Dremio setup unless you want to redo it.
+This wipes the old MinIO data, Nessie catalog, MLflow database, and Dremio data. It also removes Dremio's admin user and the Nessie source, but the next `Start Demo.bat` recreates both from `.env` with the same password, so no manual setup is needed.
 
 ## 2. Start the full stack
 
@@ -53,9 +53,11 @@ If you click **Run All** again, it adds versions and moves the champion.
 
 ## 5. Dremio (the BI box)
 
-Open <http://localhost:9047>.
+Open <http://localhost:9047> and log in as **`admin`** with the password in `.env`. `Start Demo.bat` prints it once on the first run, and it is the same password Tableau asks for later. It is not the MinIO login.
 
-First time (fresh machine or after a reset):
+`Start Demo.bat` also creates the `nessie` source through the Dremio REST API, so there is no first-user screen and no source form to fill in. Running it a second time changes nothing.
+
+Manual fallback, only if the console says `Provisioning skipped` or an existing `admin` uses a different password:
 
 1. Create the admin user with username `admin`; choose your own password. This is not the MinIO password. Keep the username `admin` so the Tableau workbook matches.
 2. Add the catalog: **Sources -> + -> Nessie**
@@ -124,4 +126,4 @@ Wipe everything:
 - double-click `Reset Demo.bat`, or
 - run `docker compose --profile dremio down -v`.
 
-The reset also removes the Dremio user and Nessie source, so set them up again after the next start. The Tableau workbook and its driver stay in this folder; reopen the workbook and enter the new Dremio password.
+The reset also removes the Dremio user and the Nessie source, but `.env` survives, so the next `Start Demo.bat` recreates both with the same password - nothing to set up again. The Tableau workbook and its driver stay in this folder; reopen the workbook and enter that password.

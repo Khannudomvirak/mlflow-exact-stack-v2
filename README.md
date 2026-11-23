@@ -161,10 +161,8 @@ password location, and the Run All step. A fresh machine does not need a reset.
 Double-click **`Start Demo.bat`**. It starts Docker Desktop if it is not
 already running, builds and starts the full stack including Dremio, waits for
 MinIO / Nessie / MLflow / Jupyter, and loads the two Iceberg versions only when
-the lakehouse does not already have them. It then opens the deck and the UIs:
+the lakehouse does not already have them. It then opens the UIs:
 
-- the deck (`MLflow_Exact_Stack_V2_Presentation.pptx`) - press Alt+F5 for
-  Presenter View; the speaker notes are the talk track
 - JupyterLab: <http://localhost:8888/lab/tree/notebooks/lakehouse_mlflow.ipynb>
 - MLflow: <http://localhost:5000>
 - MinIO console: <http://localhost:9001> (`minioadmin` / `minioadmin`)

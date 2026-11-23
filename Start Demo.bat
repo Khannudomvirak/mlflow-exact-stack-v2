@@ -64,8 +64,7 @@ set "HAS_RUNS=1"
 docker compose exec -T mlflow python3 -c "import sqlite3; c=sqlite3.connect('/mlflow/mlflow.db'); n=c.execute('select count(*) from runs').fetchone()[0]; raise SystemExit(0 if n != 0 else 1)" >nul 2>&1
 if errorlevel 1 set "HAS_RUNS=0"
 
-echo [5/5] Opening the deck and the UIs...
-start "" "%~dp0MLflow_Exact_Stack_V2_Presentation.pptx"
+echo [5/5] Opening the UIs...
 start "" http://localhost:5000
 start "" http://localhost:8888/lab/tree/notebooks/lakehouse_mlflow.ipynb
 start "" http://localhost:9001
@@ -73,7 +72,8 @@ start "" http://localhost:19120/api/v2/trees/main
 start "" http://localhost:9047
 
 echo.
-echo The deck is open. Press Alt+F5 in PowerPoint for Presenter View; the notes are your script.
+echo The deck is not opened for you: double-click MLflow_Exact_Stack_V2_Presentation.pptx,
+echo then press Alt+F5 for Presenter View. The talk track is Presentation_Script.md.
 echo   1. Slides 1-5: follow the presenter notes.
 if "%HAS_RUNS%"=="0" (
   echo   2. Slide 6: MLflow is empty - choose Run All to create the two runs.

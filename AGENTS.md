@@ -144,7 +144,7 @@ The notebook trains `rf-100` and `rf-300`, logs `training_nessie_commit = A`, me
 Requirements: Docker Desktop with WSL2, about 10 GB free disk for images, and free ports `5000`, `8888`, `9000`, `9001`, `19120`, `9047`, `31010`, `32010`.
 
 1. Double-click `Start Demo.bat`.
-2. It starts Docker Desktop if needed, starts the full Dremio profile, waits for services, ingests if Nessie does not match `state/ingest_summary.json`, and opens the deck/UIs.
+2. It starts Docker Desktop if needed, starts the full Dremio profile, waits for services, ingests if Nessie does not match `state/ingest_summary.json`, and opens the UIs. It no longer opens the deck; that is a manual double-click.
 3. On a fresh machine or after a reset, open Jupyter and click **Run All** once to create the two MLflow runs and the `v1` champion.
 4. Dremio provisions itself on start (below); set up Tableau once.
 

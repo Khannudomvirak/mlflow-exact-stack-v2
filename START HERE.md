@@ -2,7 +2,7 @@
 
 Keep the whole folder together; every path is relative.
 
-- `Start Demo.bat` starts the full stack and opens the deck/UIs.
+- `Start Demo.bat` starts the full stack and opens the UIs.
 - `Reset Demo.bat` wipes all Docker volumes and asks for confirmation.
 
 ## Before you start
@@ -28,7 +28,7 @@ This wipes the old MinIO data, Nessie catalog, MLflow database, and Dremio data.
 
 Double-click `Start Demo.bat`.
 
-It starts MinIO, Nessie, MLflow, Spark/Jupyter, and Dremio, loads the two Iceberg versions if the lakehouse is empty, and opens the deck and UIs. The first run pulls images and can take several minutes.
+It starts MinIO, Nessie, MLflow, Spark/Jupyter, and Dremio, loads the two Iceberg versions if the lakehouse is empty, and opens the UIs. The first run pulls images and can take several minutes.
 
 ## 3. MinIO login
 
@@ -98,7 +98,7 @@ Restart Tableau. Open `Tableau_Churn_Dashboard.twb` in this folder and enter `ad
 
 ## 7. Other UIs
 
-- Deck: opened automatically; press `Alt+F5` in PowerPoint for Presenter View.
+- Deck: open it yourself (`MLflow_Exact_Stack_V2_Presentation.pptx`), then press `Alt+F5` in PowerPoint for Presenter View.
 - JupyterLab: <http://localhost:8888>
 - MLflow: <http://localhost:5000>
 - MinIO: <http://localhost:9001>

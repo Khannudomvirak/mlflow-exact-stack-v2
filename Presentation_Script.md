@@ -103,7 +103,7 @@ If he asks why not a snapshot id: Nessie exposes only the snapshot for the curre
 
 Demo script.
 
-Double-click `Start Demo.bat`: it starts Docker Desktop if needed, brings up the stack, waits for health, makes sure the two data versions are loaded, and opens the deck and the UIs.
+Double-click `Start Demo.bat`: it starts Docker Desktop if needed, brings up the stack, waits for health, makes sure the two data versions are loaded, and opens the UIs. It does not open the deck - double-click it and press `Alt+F5`.
 
 If you reset first, MLflow starts empty: open Jupyter and **Run All** once to recreate the two runs and the `v1` champion; the saved outputs are refreshed.
 

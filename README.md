@@ -337,9 +337,3 @@ The V2 deck lives in this folder; its speaker notes are the full talk track
 
 ![Tableau Dashboard](assets/Tableau_Churn_Dashboard.png)
 
-### Stack Components
-
-![Lakehouse Architecture](Lakehouse_Explainer.png)
-
-![Feature Distribution](notebooks/churn_by_contract.png)
-

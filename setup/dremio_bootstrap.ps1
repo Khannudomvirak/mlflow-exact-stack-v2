@@ -1,6 +1,6 @@
 # Provision the demo Dremio instance without typing in the UI.
 #
-# Creates the local `dremioadmin` user through the first-user bootstrap endpoint and
+# Creates the local `admin123` user through the first-user bootstrap endpoint and
 # the `nessie` source through the catalog API, using the settings documented in
 # AGENTS.md and README.md. Idempotent: a second run creates nothing.
 #
@@ -14,10 +14,10 @@
 #   POST /api/v3/catalog              -> source entity; config keys below
 #
 # Demo credentials are fixed so nothing has to be looked up on stage:
-#   user dremioadmin / password dremioadmin1
-# Dremio rejects any first-user password without a digit (verified: 'dremioadmin'
-# -> 400 "must be at least 8 letters long, must contain at least one number and
-# one letter"), hence the trailing 1. A pre-existing .env can override either.
+#   user admin123 / password admin123 - the same word for both
+# Dremio requires 8+ characters with at least one digit, so plain 'admin' is
+# rejected (verified) while admin123 is accepted. A pre-existing .env can
+# override either value.
 #
 # Exit codes: 0 = provisioned or already provisioned, 1 = could not provision.
 
@@ -69,18 +69,16 @@ function Get-ErrorBody($errorRecord) {
 }
 
 # --- credentials -------------------------------------------------------------
-# Fixed demo credentials: dremioadmin / dremioadmin1. Dremio refuses the word
-# 'dremioadmin' as a password (it needs a digit), so this is the closest it gets
-# to user == password. Values already in .env win, which is how a machine with an
-# older password keeps working without a reset.
+# Fixed demo credentials: admin123 / admin123. Values already in .env win, which
+# is how a machine with an older password keeps working without a reset.
 $envValues = Read-DotEnv
 $user = $envValues['DREMIO_USER']
-if (-not $user) { $user = 'dremioadmin' }
+if (-not $user) { $user = 'admin123' }
 
 $password = $envValues['DREMIO_PASSWORD']
 $chosenHere = $false
 if (-not $password) {
-    $password = 'dremioadmin1'
+    $password = 'admin123'
     $chosenHere = $true
 }
 
@@ -125,7 +123,7 @@ function New-DremioFirstUser([string]$name, [string]$secret) {
         userName  = $name
         firstName = 'Lakehouse'
         lastName  = 'Admin'
-        email     = 'dremioadmin@lakehouse.local'
+        email     = 'admin123@lakehouse.local'
         password  = $secret
     } | ConvertTo-Json
     try {

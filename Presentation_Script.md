@@ -21,7 +21,7 @@ Total: about 5 minutes. All four can join the Q&A; Theng leads the close.
 
 - Start the stack with `Start Demo.bat`.
 - If you reset first, click **Run All** once in the notebook so MLflow has the two runs and the `v1` champion.
-- On a fresh machine, create the Dremio `dremioadmin` user and Nessie source once, then open the Tableau workbook.
+- On a fresh machine, create the Dremio `admin123` user and Nessie source once, then open the Tableau workbook.
 - Put the deck in Presenter View, not Slideshow mode, if you want the notes on your screen.
 
 ## Slide 1 — Opening: Where MLflow fits — Khon Sotheara
@@ -117,7 +117,7 @@ At about 3:30 open Dremio on port 9047, add the Nessie source once, and run:
 SELECT * FROM nessie.lakehouse.churn_features LIMIT 20;
 ```
 
-Then open `Tableau_Churn_Dashboard.twb`, enter `dremioadmin1`, and show the **Churn Dashboard**: churn by contract, tenure, and internet.
+Then open `Tableau_Churn_Dashboard.twb`, enter `admin123`, and show the **Churn Dashboard**: churn by contract, tenure, and internet.
 
 The Dremio JDBC driver must be installed once. The first build takes several minutes; later runs are cached.
 

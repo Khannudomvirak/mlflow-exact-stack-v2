@@ -61,16 +61,15 @@ docker compose --profile dremio up -d
 ```
 
 On Windows `Start Demo.bat` does this for you: `setup/dremio_bootstrap.ps1`
-creates the **`admin`** user and the **Nessie** source through the Dremio REST
+creates the **`dremioadmin`** user and the **Nessie** source through the Dremio REST
 API. Nothing is typed in the UI, and a second start creates nothing. Log in at
-`http://localhost:9047` as **`admin`** / **`admin123`** - that is also the
-password Tableau asks for. Dremio refuses the bare word `admin` (minimum 8
-characters with a digit), hence `admin123`; set `DREMIO_PASSWORD` in `.env` to
-override it.
+`http://localhost:9047` as **`dremioadmin`** / **`dremioadmin1`** - that is
+also the password Tableau asks for. Dremio rejects a password with no digit,
+hence the trailing `1`; set `DREMIO_PASSWORD` in `.env` to override it.
 
 The manual steps below are the fallback for macOS/Linux and for an existing
-`admin` whose password differs from `.env`: create the first user with username
-**`admin`** and your own password, and add a **Nessie** source at
+`dremioadmin` whose password differs from `.env`: create the first user with
+username **`dremioadmin`** and your own password, and add a **Nessie** source at
 `http://nessie:19120/api/v2` with Nessie authentication **none**. In **Storage**
 choose **AWS**, then enter `warehouse` after the fixed `s3://` prefix (the full
 value is `s3://warehouse`; do not add a leading slash). Use **AWS Access Key**
@@ -97,8 +96,8 @@ To open it on another machine:
    if it was already open. Tableau does not ship the Dremio driver. The
    complete demo—including the 48 MB driver jar—is in both the ZIP and the
    GitHub clone.
-3. Start the full stack, open the workbook, and enter `admin123` for the Dremio
-   `admin` user when prompted; tick **Save password** so it stops asking. Dremio
+3. Start the full stack, open the workbook, and enter `dremioadmin1` for the
+   `dremioadmin` user when prompted; tick **Save password** so it stops asking. Dremio
    must be running.
 4. Open the **Churn Dashboard** tab. The proof screenshot is
    `assets/Tableau_Churn_Dashboard.png`.
@@ -215,7 +214,7 @@ above; to wipe all volumes, use the reset command below.
    commit hash. That hash is what MLflow logged.
 5. **Dremio (optional)** — `http://localhost:9047` → Nessie source →
    `SELECT * FROM nessie.lakehouse.churn_features LIMIT 20;` (one-time user
-   setup with username `admin`; see the Dremio section).
+   setup with username `dremioadmin`; see the Dremio section).
 6. **Tableau** — open `Tableau_Churn_Dashboard.twb`, enter the Dremio password,
    and show the **Churn Dashboard** tab. The Dremio driver must be installed
    once (see the Tableau section).
@@ -250,7 +249,7 @@ commit hashes; slide 5
 uses hash slots, so it stays valid—read the live values from the notebook or
 MLflow (the row counts and metrics are deterministic). The Tableau workbook and
 its driver live outside Docker and are not wiped; after the reset, recreate the
-Dremio `admin` user and Nessie source, then reopen the workbook and enter the
+Dremio `dremioadmin` user and Nessie source, then reopen the workbook and enter the
 new password.
 
 ## Troubleshooting
@@ -276,7 +275,7 @@ new password.
   `Tableau Driver\dremio-jdbc-driver-26.0.5.jar` into
   `%USERPROFILE%\Documents\My Tableau Repository\Drivers`, then restart Tableau.
 - **Tableau cannot connect or asks for a password** — start the full stack
-  with `Start Demo.bat` (Dremio on port 9047), sign in as `admin` with the
+  with `Start Demo.bat` (Dremio on port 9047), sign in as `dremioadmin` with the
   password chosen in Dremio; the workbook connects to `localhost:31010`.
   Recreate the Dremio source after a reset.
 

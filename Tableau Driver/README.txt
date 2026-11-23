@@ -11,7 +11,7 @@ that driver, so install it once on the presentation machine:
    C:\Users\<you>\Documents\My Tableau Repository\Drivers
 3. Restart Tableau Desktop if it was already open.
 4. Open Tableau_Churn_Dashboard.twb in the main project folder.
-5. Enter the Dremio admin password when Tableau asks (username admin).
+5. Enter the Dremio admin password when Tableau asks (username dremioadmin).
    The Dremio server must be running on localhost:31010 first.
 
 The jar is the same Dremio JDBC driver (26.0.5) used to build and

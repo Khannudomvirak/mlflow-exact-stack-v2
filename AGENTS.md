@@ -63,7 +63,7 @@ MinIO stores files; Iceberg turns them into versioned tables; Nessie versions th
   - `state/ingest_summary.json` — last-ingest commit hashes and row counts.
   - `Tableau_Churn_Dashboard.twb` — live Tableau workbook over Dremio.
   - `Tableau Driver/` — Dremio JDBC 26.0.5 jar and instructions.
-  - `setup/dremio_bootstrap.ps1` — idempotent Dremio provisioning (admin user + Nessie source); called by the launcher. Not required on macOS/Linux.
+  - `setup/dremio_bootstrap.ps1` — idempotent Dremio provisioning (the dremioadmin user + Nessie source); called by the launcher. Not required on macOS/Linux.
   - `Start Demo.bat` — Windows-only full-stack launcher.
   - `Reset Demo.bat` — Windows-only destructive reset.
   - `START HERE.md` — short universal setup guide.
@@ -208,14 +208,14 @@ Then start again and run ingestion once. The notebook still needs **Run All** on
 
 ## Dremio setup
 
-On Windows `Start Demo.bat` provisions Dremio: `setup/dremio_bootstrap.ps1` creates the `admin` user and the `nessie` source through the REST API (launcher step `[3b/5]`) before the browser tabs open, so no first-user screen and no source form appear. Credentials are the fixed demo pair `admin` / `admin123`: `admin` alone is rejected (8 characters minimum plus a digit). A `DREMIO_PASSWORD` already in `.env` overrides it, which is how an older machine keeps its password without a reset.
+On Windows `Start Demo.bat` provisions Dremio: `setup/dremio_bootstrap.ps1` creates the `dremioadmin` user and the `nessie` source through the REST API (launcher step `[3b/5]`) before the browser tabs open, so no first-user screen and no source form appear. Credentials are the fixed demo pair `dremioadmin` / `dremioadmin1`: Dremio rejects a password containing no digit, hence the trailing `1`. A `DREMIO_PASSWORD` already in `.env` overrides it, which is how an older machine keeps its password without a reset.
 
-The manual steps below are the fallback only: macOS/Linux, a `Provisioning skipped` line in the console, or an existing `admin` whose password differs from `.env`.
+The manual steps below are the fallback only: macOS/Linux, a `Provisioning skipped` line in the console, or an existing `dremioadmin` whose password differs from `.env`.
 
 First time on a fresh machine or after a reset:
 
 1. Open <http://localhost:9047>.
-2. Create the admin user with username **`admin`** and a password of your choice. Keep the username `admin`; the Tableau workbook expects it.
+2. Create the admin user with username **`dremioadmin`** and a password of your choice. Keep the username `dremioadmin`; the Tableau workbook stores it.
 3. Add **Sources -> Nessie**:
    - Name: `nessie`
    - Endpoint: `http://nessie:19120/api/v2`
@@ -244,7 +244,7 @@ The current table should show 2,500 rows. Dremio's schema tree has been unreliab
 - The account lives in the `dremio-data` volume and survives restarts and rebuilds.
 - `Reset Demo.bat` runs `down -v`, deleting the account and all Dremio data.
 - The bootstrap is idempotent: it logs in first and creates a user only when none exists, so a second start changes nothing.
-- Password, name and email can be changed later (admin: Settings -> Users; own password in account settings). Keep the username `admin`—the Tableau workbook expects it, and changing it requires editing the Tableau connection.
+- Password, name and email can be changed later (admin: Settings -> Users; own password in account settings). The username is `dremioadmin`, and `Tableau_Churn_Dashboard.twb` stores it in its connection, so changing it means editing that file too.
 - For custom credentials that survive resets, read them from an untracked `.env`.
 
 ## Tableau setup
@@ -260,7 +260,7 @@ Copy it to the Tableau driver folder:
 - Windows: `%USERPROFILE%\Documents\My Tableau Repository\Drivers`
 - macOS: `~/Documents/My Tableau Repository/Drivers`
 
-Restart Tableau, open `Tableau_Churn_Dashboard.twb`, enter the Dremio `admin` password, and show the **Churn Dashboard** tab. It has three charts: churn by contract, tenure group, and internet service.
+Restart Tableau, open `Tableau_Churn_Dashboard.twb`, enter the Dremio `dremioadmin` password, and show the **Churn Dashboard** tab. It has three charts: churn by contract, tenure group, and internet service.
 
 ## Presentation
 
@@ -329,7 +329,7 @@ Two separate asks; do not merge them into one feature.
 
 | Item | Decision |
 |---|---|
-| Auto-provision the Dremio `admin` user (bootstrap REST) | **Build** |
+| Auto-provision the Dremio `dremioadmin` user (bootstrap REST) | **Build** |
 | Auto-add the Dremio `nessie` source (catalog API) | **Build** |
 | Generated Dremio password in an untracked `.env` | **Build** |
 | Auto-run the notebook (`nbconvert --execute`) | **Rejected** — a manual `Run All` is safer; an auto-run can add runs and move `champion` |
@@ -340,10 +340,10 @@ Why only one service needs this: of the five Compose services, only Dremio has a
 Accepted behaviour:
 
 - `Start Demo.bat` calls the bootstrap after Dremio answers on 9047 and **before** the browser tabs open, so the UI never races the API.
-- The bootstrap logs in first; if `admin` already answers, nothing is created. If no user exists, it calls the first-user endpoint once.
+- The bootstrap logs in first; if `dremioadmin` already answers, nothing is created. If no user exists, it calls the first-user endpoint once.
 - The Nessie source is created only when `catalog/by-path/nessie` returns 404, so a second start never duplicates it.
-- Credentials are `admin` / `admin123`, mirrored into `.env` (`DREMIO_USER`, `DREMIO_PASSWORD`) so one file answers both Dremio and Tableau. `.env` stays untracked; values already in it win.
-- If `admin` exists with a different password than `.env` holds, the bootstrap prints a warning and exits without changing anything. Recovery is setting `DREMIO_PASSWORD` or running `Reset Demo.bat`.
+- Credentials are `dremioadmin` / `dremioadmin1`, mirrored into `.env` (`DREMIO_USER`, `DREMIO_PASSWORD`) so one file answers both Dremio and Tableau. `.env` stays untracked; values already in it win.
+- If `dremioadmin` exists with a different password than `.env` holds, the bootstrap prints a warning and exits without changing anything. Recovery is setting `DREMIO_PASSWORD` or running `Reset Demo.bat`.
 
 Implementation notes, verified live against Dremio 26.0.5 on 2026-11-23:
 
@@ -393,4 +393,4 @@ Do not claim a fresh 16 GB machine or a clean-machine end-to-end run is verified
 - Repo: public.
 - Stack: intentionally reset; no containers or volumes should be assumed running until `Start Demo.bat` or Compose is run.
 - ZIP: not present; the public repo is the complete clone source.
-- Autologin: Dremio provisioning **implemented and verified** 2026-11-23 (admin user, Nessie source, `.env` password, launcher step `[3b/5]`). Notebook auto-run and the landing page were rejected; Vault stays the production story only.
+- Autologin: Dremio provisioning **implemented and verified** 2026-11-23 (dremioadmin user, Nessie source, `.env` password, launcher step `[3b/5]`). Notebook auto-run and the landing page were rejected; Vault stays the production story only.

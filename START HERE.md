@@ -22,7 +22,7 @@ On a fresh machine, skip this step. If Docker already has old volumes, either:
 docker compose --profile dremio down -v
 ```
 
-This wipes the old MinIO data, Nessie catalog, MLflow database, and Dremio data. It also removes Dremio's admin user and the Nessie source, but the next `Start Demo.bat` recreates both from `.env` with the same password, so no manual setup is needed.
+This wipes the old MinIO data, Nessie catalog, MLflow database, and Dremio data. It also removes Dremio's `dremioadmin` user and the Nessie source, but the next `Start Demo.bat` recreates both from `.env` with the same password, so no manual setup is needed.
 
 ## 2. Start the full stack
 
@@ -53,15 +53,15 @@ If you click **Run All** again, it adds versions and moves the champion.
 
 ## 5. Dremio (the BI box)
 
-Open <http://localhost:9047> and log in as **`admin`** / **`admin123`**. That is the password Tableau asks for later. It is not the MinIO login.
+Open <http://localhost:9047> and log in as **`dremioadmin`** / **`dremioadmin1`**. That is the password Tableau asks for later. It is not the MinIO login.
 
-Dremio rejects the bare word `admin` (8 characters minimum, with a digit), which is why the password carries `123`. Set `DREMIO_PASSWORD` in `.env` if you want a different one.
+Dremio rejects a password with no digit, which is why this one ends in `1`. Set `DREMIO_PASSWORD` in `.env` if you want a different one.
 
 `Start Demo.bat` also creates the `nessie` source through the Dremio REST API, so there is no first-user screen and no source form to fill in. Running it a second time changes nothing.
 
-Manual fallback, only if the console says `Provisioning skipped` or an existing `admin` uses a different password:
+Manual fallback, only if the console says `Provisioning skipped` or an existing `dremioadmin` uses a different password:
 
-1. Create the admin user with username `admin`; choose your own password. This is not the MinIO password. Keep the username `admin` so the Tableau workbook matches.
+1. Create the admin user with username `dremioadmin`; choose your own password. This is not the MinIO password. Keep the username `dremioadmin` - the Tableau workbook stores it.
 2. Add the catalog: **Sources -> + -> Nessie**
    - Name: `nessie`
    - Endpoint: `http://nessie:19120/api/v2`
@@ -94,7 +94,7 @@ to:
 C:\Users\<you>\Documents\My Tableau Repository\Drivers
 ```
 
-Restart Tableau. Open `Tableau_Churn_Dashboard.twb` in this folder and enter the Dremio admin password. The **Churn Dashboard** tab shows churn by contract, tenure group, and internet service. Proof image: `assets\Tableau_Churn_Dashboard.png`.
+Restart Tableau. Open `Tableau_Churn_Dashboard.twb` in this folder and enter `dremioadmin1`. The **Churn Dashboard** tab shows churn by contract, tenure group, and internet service. Proof image: `assets\Tableau_Churn_Dashboard.png`.
 
 ## 7. Other UIs
 

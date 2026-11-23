@@ -24,7 +24,7 @@
       <connection class='federated'>
         <named-connections>
           <named-connection caption='localhost' name='dremio.0iw18es1onsnn419pofxr0iazjr5'>
-            <connection authentication='auth-user-pass' class='dremio' one-time-sql='' port='31010' schema='nessie.lakehouse' server='localhost' sslmode='' username='admin' v-buffer-size='' v-disable-cert-verification='false' v-dremio-product='v-software' v-engine='' v-project-id='' v-region='' v-routing-queue='' v-routing-tag='' v-use-flight-driver='false' />
+            <connection authentication='auth-user-pass' class='dremio' one-time-sql='' port='31010' schema='nessie.lakehouse' server='localhost' sslmode='' username='dremioadmin' v-buffer-size='' v-disable-cert-verification='false' v-dremio-product='v-software' v-engine='' v-project-id='' v-region='' v-routing-queue='' v-routing-tag='' v-use-flight-driver='false' />
           </named-connection>
         </named-connections>
         <relation connection='dremio.0iw18es1onsnn419pofxr0iazjr5' name='Custom SQL Query' type='text'>SELECT * FROM nessie.lakehouse.churn_features</relation>

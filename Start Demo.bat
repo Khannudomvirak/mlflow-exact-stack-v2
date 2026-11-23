@@ -47,6 +47,18 @@ echo [3b/5] Creating the Dremio admin123 user and the Nessie source...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup\dremio_bootstrap.ps1"
 if errorlevel 1 echo       Provisioning skipped - set Dremio up by hand (see README.md).
 
+where ollama >nul 2>&1 && (echo. 
+ echo Ollama is installed and running. 
+ echo.) || (echo. 
+ echo Ollama is NOT installed on this host. 
+ echo Install Ollama from https://ollama.ai to enable the MLflow Assistant. 
+ echo.) 
+ set OLLAMA_HOST=0.0.0.0:11434
+ ollama serve >nul 2>&1 || echo Ollama serve already running
+echo.
+echo MLflow Assistant needs Ollama running on 0.0.0.0:11434.
+echo   Make sure Ollama is installed and the "Expose Ollama to the network" toggle is ON.
+echo.
 set "NEED_INGEST=1"
 if exist "state\ingest_summary.json" (
   powershell -NoProfile -ExecutionPolicy Bypass -Command "$s=Get-Content -LiteralPath 'state\ingest_summary.json' -Raw | ConvertFrom-Json; $h=(Invoke-RestMethod 'http://localhost:19120/api/v2/trees/main').reference.hash; if ($h -eq $s.batch_2.commit) { exit 0 } else { exit 1 }"

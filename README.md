@@ -328,3 +328,26 @@ MLflow Exact Stack V2/
 
 The V2 deck lives in this folder; its speaker notes are the full talk track
 (no separate script). The Q&A slide is the prepared answer set.
+
+## Screenshots
+
+### Key Images
+
+![Lakehouse Explainer](Lakehouse_Explainer.png)
+
+![Tableau Dashboard](assets/Tableau_Churn_Dashboard.png)
+
+![Dremio proof](Dremio_proof.png)
+
+### Stack Components
+
+![Lakehouse Architecture](Lakehouse_Explainer.png)
+
+![MinIO Console](assets/dse_logo.png)
+
+![MLflow Tracking](assets/fe_logo.png)
+
+![Dremio SQL](assets/rupp_logo.png)
+
+![Feature Distribution](notebooks/churn_by_contract.png)
+

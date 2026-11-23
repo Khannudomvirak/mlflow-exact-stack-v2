@@ -81,6 +81,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.mlflow
+      args:
+        # Change either one if the host Ollama runs a different model or port.
+        MLFLOW_ASSISTANT_MODEL: ${MLFLOW_ASSISTANT_MODEL:-qwen2.5-coder:3b}
+        OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
     depends_on:
       minio-init:
         condition: service_completed_successfully
@@ -90,6 +94,9 @@ services:
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       AWS_DEFAULT_REGION: us-east-1
+      # Lets the Assistant API accept the browser's request, which arrives from
+      # the Docker gateway rather than loopback. See setup/enable_mlflow_assistant.py.
+      MLFLOW_ENABLE_REMOTE_ASSISTANT: "true"
     command:
       - mlflow
       - server

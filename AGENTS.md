@@ -64,6 +64,7 @@ MinIO stores files; Iceberg turns them into versioned tables; Nessie versions th
   - `Tableau_Churn_Dashboard.twb` — live Tableau workbook over Dremio.
   - `Tableau Driver/` — Dremio JDBC 26.0.5 jar and instructions.
   - `setup/dremio_bootstrap.ps1` — idempotent Dremio provisioning (the admin123 user + Nessie source); called by the launcher. Not required on macOS/Linux.
+  - `setup/enable_mlflow_assistant.py` — build-time patch for MLflow's beta AI Assistant (see "Invariants and gotchas").
   - `Start Demo.bat` — Windows-only full-stack launcher.
   - `Reset Demo.bat` — Windows-only destructive reset.
   - `START HERE.md` — short universal setup guide.
@@ -317,6 +318,7 @@ Plain-language answer if asked what the project is:
 - The public repo includes the generated chart, runtime state, AGENTS.md, and the third-party Dremio jar because the user explicitly wants a complete clone. Do not silently remove them.
 - `Start Demo.bat` creates the Dremio user and Nessie source only when missing; both persist in `dremio-data` and survive restarts and rebuilds.
 - Jupyter and MLflow have no authentication in this stack; keep it local-only and never expose the ports publicly.
+- The AI Assistant panel is loopback-only upstream (Ollama's provider hardcodes `allows_remote_access = False`) and `PUT /assistant/config` is a DENY route, so the browser cannot enable or configure it. `Dockerfile.mlflow` runs `setup/enable_mlflow_assistant.py` to flag the provider and seed `~/.mlflow/assistant/config.json`, and compose sets `MLFLOW_ENABLE_REMOTE_ASSISTANT=true`. Both are pinned to MLflow 3.17.2 and fail the build if upstream moves. Host Ollama must run with `OLLAMA_HOST=0.0.0.0:11434`, the seeded model must be pulled, and the Assistant's Bash tool runs inside the MLflow container. Optional: never make the demo depend on it.
 - Dremio's UI is a SQL/table tool, not a chart/dashboard tool.
 
 ## Teacher feedback: autologin and Vault

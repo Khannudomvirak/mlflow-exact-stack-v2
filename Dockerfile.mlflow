@@ -6,4 +6,14 @@ USER root
 # artifacts into the MinIO bucket.
 RUN python3 -m pip install --no-cache-dir "boto3>=1.34,<2"
 
+# The AI Assistant panel only answers loopback clients, which a Docker published
+# port can never be. The script patches that and seeds the Ollama provider, which
+# must name a model the host's Ollama server has already pulled.
+ARG MLFLOW_ASSISTANT_MODEL=qwen2.5-coder:3b
+ARG OLLAMA_BASE_URL=http://host.docker.internal:11434
+ENV MLFLOW_ASSISTANT_MODEL=$MLFLOW_ASSISTANT_MODEL \
+    OLLAMA_BASE_URL=$OLLAMA_BASE_URL
+COPY setup/enable_mlflow_assistant.py /tmp/enable_mlflow_assistant.py
+RUN python3 /tmp/enable_mlflow_assistant.py
+
 EXPOSE 5000

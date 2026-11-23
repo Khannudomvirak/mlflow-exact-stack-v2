@@ -114,6 +114,28 @@ bigger hardware is still untested. Steps are in `START HERE.md`; the proof image
 is `assets/Tableau_Churn_Dashboard.png`. Capture a Dremio query screenshot as
 `Dremio proof.png` beside it if you want both branches.
 
+### Optional: the AI assistant panel (beta)
+
+MLflow 3.17 ships an **Assistant** tab that can answer questions about the live
+tracking data. Upstream it only answers clients on `127.0.0.1`, which a
+Docker-published port can never be, so `Dockerfile.mlflow` runs
+`setup/enable_mlflow_assistant.py` to lift that check and seed the provider.
+Ollama is the backend because it needs no API key.
+
+1. Install [Ollama](https://ollama.com) on the host and pull the model: `ollama pull qwen2.5-coder:3b`.
+2. Start it so the container can reach it: `OLLAMA_HOST=0.0.0.0:11434 ollama serve`.
+3. Rebuild once: `docker compose build mlflow && docker compose up -d mlflow`.
+4. Open the **Assistant** tab inside an experiment page.
+
+A different model: `MLFLOW_ASSISTANT_MODEL=qwen3.5:4b docker compose build mlflow`.
+
+Caveats - this is a beta extra, not part of the demo path. The panel cannot save
+its own settings (that route stays loopback-only), so the model is fixed at build
+time. The Assistant's Bash tool runs inside the MLflow container, not on the
+host. The patch is tied to MLflow 3.17.2 and fails the build loudly if a version
+bump moves the code. Every evaluation run is plain MLflow; the assistant is only
+for asking questions.
+
 ## Hardware reality (important)
 
 - Host: **8.2 GB RAM** (7.6 GiB), 12 cores. The WSL VM is capped at **6 GB**
@@ -285,7 +307,7 @@ new password.
 MLflow Exact Stack V2/
 ├── docker-compose.yml          MinIO, Nessie, MLflow, Spark+Jupyter, optional Dremio
 ├── Dockerfile.spark            Spark 3.5.9 + Iceberg 1.11.0 + Jupyter + MLflow client
-├── Dockerfile.mlflow           MLflow 3.17.2 + boto3 for S3 artifacts
+├── Dockerfile.mlflow           MLflow 3.17.2 + boto3 for S3 artifacts, plus the assistant patch
 ├── conf/spark-defaults.conf    Nessie REST catalog + memory settings
 ├── data/                       the two source batches (deterministic synthetic churn)
 ├── jobs/

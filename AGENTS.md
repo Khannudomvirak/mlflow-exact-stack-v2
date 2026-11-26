@@ -145,6 +145,7 @@ Requirements: Docker Desktop with WSL2, about 10 GB free disk for images, and fr
 
 1. Double-click `Start Demo.bat`.
 2. It starts Docker Desktop if needed, starts the full Dremio profile, waits for services, ingests if Nessie does not match `state/ingest_summary.json`, and opens the UIs. It no longer opens the deck; that is a manual double-click.
+   Its Ollama step is a 2-second HTTP probe of `http://127.0.0.1:11434/api/tags` and never runs `ollama serve`; a foreground server there once blocked the script before `[5/5]`, so a run could end with no tabs open (fixed 2026-11-25). Ollama is optional and stays manual, as in README.
 3. On a fresh machine or after a reset, open Jupyter and click **Run All** once to create the two MLflow runs and the `v1` champion.
 4. Dremio provisions itself on start (below); set up Tableau once.
 
@@ -247,6 +248,7 @@ The current table should show 2,500 rows. Dremio's schema tree has been unreliab
 - The bootstrap is idempotent: it logs in first and creates a user only when none exists, so a second start changes nothing.
 - Password, name and email can be changed later (admin: Settings -> Users; own password in account settings). The username is `admin123`, and `Tableau_Churn_Dashboard.twb` stores it in its connection, so changing it means editing that file too.
 - For custom credentials that survive resets, read them from an untracked `.env`.
+- A `dremio-data` volume created before 2026-11-23 predates the bootstrap and can hold an `admin123` whose password is not the one in `.env`; the bootstrap then refuses to change anything. Fix by resetting Dremio only, not the whole stack (verified 2026-11-25).
 
 ## Tableau setup
 
@@ -318,7 +320,7 @@ Plain-language answer if asked what the project is:
 - The public repo includes the generated chart, runtime state, AGENTS.md, and the third-party Dremio jar because the user explicitly wants a complete clone. Do not silently remove them.
 - `Start Demo.bat` creates the Dremio user and Nessie source only when missing; both persist in `dremio-data` and survive restarts and rebuilds.
 - Jupyter and MLflow have no authentication in this stack; keep it local-only and never expose the ports publicly.
-- The AI Assistant panel is loopback-only upstream (Ollama's provider hardcodes `allows_remote_access = False`) and `PUT /assistant/config` is a DENY route, so the browser cannot enable or configure it. `Dockerfile.mlflow` runs `setup/enable_mlflow_assistant.py` to flag the provider and seed `~/.mlflow/assistant/config.json`, and compose sets `MLFLOW_ENABLE_REMOTE_ASSISTANT=true`. Both are pinned to MLflow 3.17.2 and fail the build if upstream moves. Host Ollama must run with `OLLAMA_HOST=0.0.0.0:11434`, the seeded model must be pulled, and the Assistant's Bash tool runs inside the MLflow container. Optional: never make the demo depend on it.
+- The AI Assistant panel is loopback-only upstream (Ollama's provider hardcodes `allows_remote_access = False`) and `PUT /assistant/config` is a DENY route, so the browser cannot enable or configure it. `Dockerfile.mlflow` runs `setup/enable_mlflow_assistant.py` to flag the provider and seed `~/.mlflow/assistant/config.json`, and compose sets `MLFLOW_ENABLE_REMOTE_ASSISTANT=true`. Both are pinned to MLflow 3.17.2 and fail the build if upstream moves. Host Ollama must run with `OLLAMA_HOST=0.0.0.0:11434`, the seeded model must be pulled, and the Assistant's Bash tool runs inside the MLflow container. If the seeded model is not pulled, point the build at an installed tag with `MLFLOW_ASSISTANT_MODEL=<tag>` in the untracked `.env` and rebuild rather than downloading another model (verified 2026-11-25 with `qwen3.5:4b`). Optional: never make the demo depend on it.
 - Dremio's UI is a SQL/table tool, not a chart/dashboard tool.
 
 ## Teacher feedback: autologin and Vault
@@ -391,8 +393,9 @@ Do not claim a fresh 16 GB machine or a clean-machine end-to-end run is verified
 
 - Presentation: recorded and done.
 - Working directory: session moved to `C:\Theara\YEAR 3\SEMESTER 1\PP`; repo at `Data Lakehouse\MLflow Exact Stack V2`.
-- Local repo: clean, synced with `origin/main` (check `git log -1` for the current commit); 27 tracked files.
+- Local repo: at `origin/main` (check `git log -1` for the current commit); 27 tracked files.
+- 2026-11-25 troubleshooting work sits on branch `fix/launcher-ollama-probe` and is proposed as a PR into `main`: the non-blocking Ollama probe in `Start Demo.bat`, the notes above, and `state/ingest_summary.json` (commits `57f4ea1c...` / `640214d2...`). `notebooks/lakehouse_mlflow.ipynb` (Run All outputs), `.env` and `SESSION_SUMMARY_2026-11-25.md` stay local; `derby.log` and `metastore_db/` are Spark leftovers safe to delete.
 - Repo: public.
-- Stack: intentionally reset; no containers or volumes should be assumed running until `Start Demo.bat` or Compose is run.
+- Stack: **running** as of 2026-11-25 (all five services up, MLflow healthy); on a reset machine, no containers or volumes should be assumed until `Start Demo.bat` or Compose is run.
 - ZIP: not present; the public repo is the complete clone source.
 - Autologin: Dremio provisioning **implemented and verified** 2026-11-23 (admin123 user, Nessie source, `.env` password, launcher step `[3b/5]`). Notebook auto-run and the landing page were rejected; Vault stays the production story only.

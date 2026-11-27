@@ -31,12 +31,12 @@ pause
 exit /b 1
 
 :docker_ready
-echo [1/5] Starting MinIO, Nessie, MLflow, Spark+Jupyter and Dremio...
+echo [1/5] Starting Vault, MinIO, Nessie, MLflow, Spark+Jupyter and Dremio...
 docker compose --profile dremio up -d --build
 if errorlevel 1 goto fail
 
 echo [2/5] Waiting for the core services to answer...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$urls=@('http://localhost:5000/health','http://localhost:8888/api','http://localhost:19120/api/v2/trees/main','http://localhost:9000/minio/health/live'); foreach($u in $urls){$ok=$false; for($i=0;$i -lt 90;$i++){try{$r=Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 $u; if($r.StatusCode -eq 200){$ok=$true;break}}catch{}; Start-Sleep -Seconds 2}; if(-not $ok){Write-Host ('Timed out waiting for ' + $u); exit 1}}; Write-Host 'Core services are up.'"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$urls=@('http://localhost:5000/health','http://localhost:8888/api','http://localhost:19120/api/v2/trees/main','http://localhost:9000/minio/health/live','http://localhost:8200/v1/sys/health'); foreach($u in $urls){$ok=$false; for($i=0;$i -lt 90;$i++){try{$r=Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 $u; if($r.StatusCode -eq 200){$ok=$true;break}}catch{}; Start-Sleep -Seconds 2}; if(-not $ok){Write-Host ('Timed out waiting for ' + $u); exit 1}}; Write-Host 'Core services are up.'"
 if errorlevel 1 goto fail
 
 echo [3/5] Waiting for Dremio (1-2 minutes on first start)...
@@ -95,6 +95,8 @@ if "%HAS_RUNS%"=="0" (
 )
 echo   3. MLflow: experiment churn-lakehouse-exact-stack - open rf-100 (v1 champion).
 echo   MinIO: http://localhost:9001 - login minioadmin / minioadmin
+  echo   Vault: http://localhost:8200 - dev mode, token lakehouse-dev-root
+  echo          The MinIO keys live in secret/lakehouse/minio (see README.md).
 echo   4. Dremio: http://localhost:9047 - admin123 and the Nessie source are ready.
 echo        Log in as admin123 / admin123.
 echo        Query: SELECT * FROM nessie.lakehouse.churn_features LIMIT 20;

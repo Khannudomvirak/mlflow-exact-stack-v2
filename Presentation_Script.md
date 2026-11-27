@@ -127,6 +127,8 @@ Close with the three likely questions and the one-liner: MLflow does not replace
 
 If he asks about the dashboard box, say it is delivered: Dremio runs and Tableau Desktop Free Edition shows the included churn workbook live.
 
+If he asks about **Vault**, open <http://localhost:8200> and sign in with the token `lakehouse-dev-root`. Browsing `secret/lakehouse/minio` shows the MinIO keys the stack is using, and `lakehouse-minio-reader` shows the read-only policy. Nessie and MLflow read those keys from Vault at start, so the storage password is no longer copied into every service. Then say the honest part: this is dev mode for the demo, and real service-to-service identity, short-lived credentials and rotation are the production story, not this container.
+
 If he asks about scale, the same compose file is the recipe; managed services replace the local ones one by one, and the notebook proves the code does not change.
 
 If he asks, **“What are you actually building?”** say:

@@ -19,7 +19,7 @@ The active session runs from `C:\Theara\YEAR 3\SEMESTER 1\PP`, not from `PP\Data
 - Repository: <https://github.com/ThearaGithub/mlflow-exact-stack-v2>
 - Visibility: public
 - Branch: `main`
-- The repo contains the **complete V2 folder**: 30 files, including the Dremio JDBC jar, runtime state, generated chart, deck, script, explainer, workbook, and `AGENTS.md`. The 2026-11-27 Vault work adds `setup/vault_init.sh` (31 files once committed).
+- The repo contains the **complete V2 folder**: 30 files on `main`, including the Dremio JDBC jar, runtime state, generated chart, deck, script, explainer, workbook, and `AGENTS.md`. The open Vault PR adds `setup/vault_init.sh` and `.gitattributes`, making 32 once merged.
 - The repo is the source of truth for the V2 demo. Clone it with:
 
 ```bash
@@ -41,6 +41,19 @@ git clean -fd
 ```
 
 The public repo includes a third-party Dremio JDBC jar. The user explicitly accepted that for easy cloning; check its license before any further redistribution.
+
+### Pull requests (2026-11-27)
+
+| PR | Branch | Contents | State |
+|---|---|---|---|
+| #1 | `fix/launcher-ollama-probe` | non-blocking Ollama probe, notes, refreshed ingest state | **merged** 2026-11-26; `main` is `ba4c0a6` |
+| #2 | `feat/vault-minio-secrets` | dev-mode Vault, `vault-init`, the three consumers reading the rendered keys, `.gitattributes`, doc sync (8 files) | open, 1 commit, `mergeable_state: clean` |
+| #3 | `fix/docker-desktop-path` | one probe line in `Start Demo.bat` for the per-user Docker Desktop install | open, 1 commit, 1 file (+1) |
+
+- PRs come from the `Khannudomvirak` fork into `ThearaGithub/mlflow-exact-stack-v2` `main`. There is no `gh` CLI: PR bodies go through the REST API with a token taken from `git credential fill`.
+- Both open PRs branch from `ba4c0a6`, so neither needs a rebase until one merges. Merge #2 before #3 if both are wanted; #2 carries the doc sync.
+- Keep #3 to `Start Demo.bat` only. Docs about the new path go in a separate commit, never in #3.
+- #3 was verified by running the probe chain in real `cmd` (it resolves the per-user executable). A full `Start Demo.bat` run from that branch has **not** been done.
 
 ## One-sentence mental model
 
@@ -150,6 +163,8 @@ Requirements: Docker Desktop with WSL2, about 10 GB free disk for images, and fr
    Its Ollama step is a 2-second HTTP probe of `http://127.0.0.1:11434/api/tags` and never runs `ollama serve`; a foreground server there once blocked the script before `[5/5]`, so a run could end with no tabs open (fixed 2026-11-25). Ollama is optional and stays manual, as in README.
 3. On a fresh machine or after a reset, open Jupyter and click **Run All** once to create the two MLflow runs and the `v1` champion.
 4. Dremio provisions itself on start (below); set up Tableau once.
+
+The launcher looks for Docker Desktop at `%ProgramFiles%\Docker\Docker\Docker Desktop.exe`, then `%LOCALAPPDATA%\Docker\Docker Desktop.exe`. A per-user install instead lands in `%LOCALAPPDATA%\Programs\DockerDesktop\Docker Desktop.exe`, so `main` reports that Docker Desktop was not found even though the engine works; PR #3 adds that middle probe. Until #3 merges, start Docker Desktop by hand before running the launcher.
 
 `Reset Demo.bat` wipes the five Docker volumes: MinIO data, Nessie catalog, MLflow database, Dremio data, and the rendered `vault-creds` file. Vault itself is in-memory, so it starts empty anyway. It does not delete host files.
 
@@ -404,9 +419,9 @@ Do not claim a fresh 16 GB machine or a clean-machine end-to-end run is verified
 
 - Presentation: recorded and done.
 - Working directory: session moved to `C:\Theara\YEAR 3\SEMESTER 1\PP`; repo at `Data Lakehouse\MLflow Exact Stack V2`.
-- Local repo: at `origin/main` (check `git log -1` for the current commit); 30 tracked files before the Vault change, 32 after it (adds `setup/vault_init.sh` and `.gitattributes`). `notebooks/lakehouse_mlflow.ipynb` (Run All outputs), `.env` and the session summaries stay local; `derby.log` and `metastore_db/` are Spark leftovers safe to delete.
+- Local repo: `main` tracks `origin/main` at `ba4c0a6` (30 tracked files); a working checkout here sat 2 commits behind, so fast-forward before branching. Work sits on three branches off that tip: `feat/vault-minio-secrets` (PR #2, 32 files), `fix/docker-desktop-path` (PR #3, 1 file), and `docs/agents-pr-status` (this section, stacked on the Vault branch so it does not conflict with #2). `fix/launcher-ollama-probe` holds a stale pre-rebase duplicate of the Vault commit (`a2dc0a5`) and is safe to delete. `notebooks/lakehouse_mlflow.ipynb` (Run All outputs), `.env` and the session summaries stay local; `derby.log` and `metastore_db/` are Spark leftovers safe to delete.
 - Repo: public.
-- Stack: **running as of 2026-11-27** (vault, minio, nessie, mlflow, spark, dremio up; `vault-init` and `minio-init` exited 0; MLflow healthy); on a reset machine, no containers or volumes should be assumed until `Start Demo.bat` or Compose is run.
+- Stack: **stopped**. The Docker daemon stopped answering on `npipe://./pipe/dockerDesktopLinuxEngine` later on 2026-11-27, though the full stack was verified live earlier that day (vault, minio, nessie, mlflow, spark, dremio up; `vault-init` and `minio-init` exited 0; MLflow healthy). No containers or volumes should be assumed running until `Start Demo.bat` or Compose is run.
 - ZIP: not present; the public repo is the complete clone source.
 - Autologin: Dremio provisioning **implemented and verified** 2026-11-23 (admin123 user, Nessie source, `.env` password, launcher step `[3b/5]`). Notebook auto-run and the landing page were rejected.
 - Vault: minimal dev-mode container + `vault-init` **implemented and verified** 2026-11-27 (see "Vault" above). MinIO's own root login is still the bootstrap value in `.env`; full service-to-service auth stays the production story only.

@@ -29,7 +29,7 @@ data version each model learned from.
 |---|---|---|
 | Sources | `data/churn_batch_1.csv`, `data/churn_batch_2.csv` | 2,000 + 500 rows |
 | Data ingestion | `jobs/ingest.py` (Spark) | Spark 3.5.9 |
-| Secrets | **Vault** dev server: KV v2 `secret/lakehouse/minio`, one AppRole per service | 2.2.2 |
+| Secrets | **Vault** dev server: one AppRole + KV path + MinIO user per service | 2.2.2 |
 | S3 data lake | **MinIO**, bucket `warehouse` | `RELEASE.2026-10-23` |
 | Iceberg tables | Apache Iceberg, Parquet data files | 1.11.0 |
 | Catalog | **Nessie** REST catalog, RocksDB persistence | 0.109.0 |
@@ -43,45 +43,53 @@ data version each model learned from.
 
 Vault 2.2.2 runs in **dev mode**: in-memory store, already unsealed, fixed root
 token `lakehouse-dev-root`. Only the one-shot `vault-init` container holds that
-token. It writes the MinIO access key and secret to `secret/lakehouse/minio`,
-then issues one identity per consumer: a policy that can read that secret, an
-AppRole with a one-hour token TTL, and the role's `role_id` / `secret_id` in that
-consumer's own volume.
+token. For each consumer it generates an S3 key pair at that service's own path
+(`secret/lakehouse/s3/nessie`, `secret/lakehouse/s3/mlflow`), writes a policy that
+can read only that path, and creates an AppRole with a one-hour token TTL plus
+that role's `role_id` / `secret_id` in the service's own volume.
 
 Each consumer runs a small `*-creds` sidecar, which is the Vault image again. It
-logs in through that AppRole, reads only what the policy allows, and renders
+logs in through that AppRole, reads only its own secret, and renders
 `S3_ACCESS_KEY` / `S3_SECRET_KEY` into a volume that only its own service mounts.
-No two services share a rendered file, and no service ever sees the root token.
+No two services share a credential, and no service ever sees the root token.
+
+The storage side matches. `minio-provision` (the pinned MinIO image, which ships
+`mc`) registers that same key pair as a MinIO user restricted to one bucket:
+`nessie-svc` on `warehouse`, `mlflow-svc` on `mlflow`, each with a canned policy
+that allows list/read/write inside its bucket and nothing else.
 
 ```bash
-docker compose logs vault-init nessie-creds mlflow-creds
-docker compose exec vault sh -c 'VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=lakehouse-dev-root vault kv get secret/lakehouse/minio'
+docker compose logs vault-init minio-provision nessie-creds mlflow-creds
+docker compose exec vault sh -c 'VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=lakehouse-dev-root vault kv get secret/lakehouse/s3/mlflow'
 docker compose exec vault sh -c 'VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=lakehouse-dev-root vault policy read lakehouse-s3-nessie'
 ```
 
-To see the least privilege from the outside, log in as one service and try to
-write the secret it just read:
+To see the least privilege, log in as one service and try to read another
+service's key or write its own:
 
 ```bash
 docker compose run --rm --no-deps --entrypoint sh nessie-creds -c '
   export VAULT_ADDR=http://vault:8200
   export VAULT_TOKEN=$(vault write -field=token auth/approle/login \
     role_id="$(cat /approle/role_id)" secret_id="$(cat /approle/secret_id)")
-  vault read -field=policies auth/token/lookup-self      # [default lakehouse-s3-nessie]
-  vault kv get -field=root_user secret/lakehouse/minio   # allowed
-  vault kv put secret/lakehouse/minio root_user=x root_password=y'  # 403
+  vault read -field=policies auth/token/lookup-self            # [default lakehouse-s3-nessie]
+  vault kv get -field=access_key secret/lakehouse/s3/nessie    # allowed
+  vault kv get -field=access_key secret/lakehouse/s3/mlflow    # 403
+  vault kv put secret/lakehouse/s3/nessie access_key=x secret_key=y'  # 403
 ```
+
+The same split holds at the bucket level: MLflow's key cannot list `warehouse`
+and Nessie's cannot list `mlflow`; both answer `AccessDenied`.
 
 Vault UI: <http://localhost:8200>, token `lakehouse-dev-root` (set
 `VAULT_DEV_ROOT_TOKEN_ID` in `.env` to change it; `VAULT_PORT` moves the port).
 
-Three limits are deliberate. MinIO's own root login is the value being stored, so
-it has to exist before anything can store it - that pair stays the bootstrap value
-in `.env`, and `minio-init` uses it to create the buckets. Because this demo does
-not create per-service MinIO accounts, the two policies guard the same pair; a
-separate MinIO user per service is the next step, along with token renewal and
-rotation. And dev mode keeps secrets in memory, so they are lost on restart and
-re-seeded on the next start.
+Two limits are deliberate. MinIO's own root login has to exist before anything
+can store it, so that pair still arrives from `.env`; it is kept at
+`secret/lakehouse/minio` for Dremio and for humans, readable only by the root
+token. And dev mode keeps secrets in memory, so they are lost on restart and
+re-seeded on the next start: there is no token renewal, rotation or revocation
+here.
 
 ### Dremio and the BI branch
 
@@ -308,8 +316,8 @@ docker compose --profile dremio down -v
 ```
 
 This removes the MinIO data, Nessie RocksDB store, MLflow SQLite database,
-Dremio data (if the optional profile was used) and the four Vault volumes
-(`approle-nessie`, `approle-mlflow`, `s3-creds-nessie`, `s3-creds-mlflow`);
+Dremio data (if the optional profile was used) and the five Vault volumes (`approle-nessie`, `approle-mlflow`, `s3-creds-nessie`,
+`s3-creds-mlflow`, `s3seed`);
 Vault is in-memory and starts empty anyway. The notebook's saved outputs
 stay in the file. `Start Demo.bat` reloads the data; click Run All once
 after the reset to recreate the two runs and v1. A reset creates new Nessie
@@ -364,6 +372,7 @@ MLflow Exact Stack V2/
 ├── state/ingest_summary.json   commit hashes + row counts from the last ingestion
 ├── setup/vault_init.sh         seeds Vault KV, then one policy + AppRole per service
 ├── setup/vault_fetch.sh        per-service sidecar: AppRole login, renders only its keys
+├── setup/minio_provision.sh    one bucket-scoped MinIO user per service, via mc
 ├── assets/                     logos + Tableau_Churn_Dashboard.png proof
 ├── Tableau_Churn_Dashboard.twb live churn dashboard (Dremio -> Tableau)
 ├── Tableau Driver/             Dremio JDBC driver for the workbook

@@ -127,7 +127,7 @@ Close with the three likely questions and the one-liner: MLflow does not replace
 
 If he asks about the dashboard box, say it is delivered: Dremio runs and Tableau Desktop Free Edition shows the included churn workbook live.
 
-If he asks about **Vault**, open <http://localhost:8200> and sign in with the token `lakehouse-dev-root`. `secret/lakehouse/minio` holds the MinIO keys; `lakehouse-s3-nessie` and `lakehouse-s3-mlflow` are two read-only policies, one per service, and Auth Methods -> approle lists one role per service. Nessie and MLflow each log in as themselves, so neither the root token nor a shared credential file reaches them. Then say the honest part: this is dev mode on a laptop, MinIO still has one account, and per-service storage accounts, token renewal and rotation are the production story.
+If he asks about **Vault**, open <http://localhost:8200> and sign in with the token `lakehouse-dev-root`. Auth Methods -> approle lists one role per service; `lakehouse-s3-nessie` and `lakehouse-s3-mlflow` are two read-only policies pointing at two separate secret paths. Nessie and MLflow each log in as themselves and read only their own key. The storage side matches: in MinIO's console the users are `nessie-svc`, restricted to the `warehouse` bucket, and `mlflow-svc`, restricted to `mlflow` - neither can touch the other's bucket. Then say the honest part: this is dev mode on a laptop, the MinIO admin pair is still a bootstrap value, and token renewal, rotation and revocation are the production story.
 
 If he asks about scale, the same compose file is the recipe; managed services replace the local ones one by one, and the notebook proves the code does not change.
 

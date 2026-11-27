@@ -11,7 +11,10 @@ set -eu
 
 APPROLE_DIR="${APPROLE_DIR:-/approle}"
 CREDS_FILE="${CREDS_FILE:-/credentials/s3.env}"
-SECRET_PATH="${SECRET_PATH:-secret/lakehouse/minio}"
+# Each service reads its own path, so one service's key never lands in another.
+SECRET_PATH="${SECRET_PATH:?SECRET_PATH must be set}"
+FIELD_KEY="${FIELD_KEY:-access_key}"
+FIELD_SECRET="${FIELD_SECRET:-secret_key}"
 
 echo "$SERVICE-creds: waiting for $VAULT_ADDR"
 i=0
@@ -32,11 +35,20 @@ VAULT_TOKEN=$(vault write -field=token auth/approle/login \
 export VAULT_TOKEN
 echo "$SERVICE-creds: logged in as app role '$SERVICE' (policies $(vault read -field=policies auth/token/lookup-self))"
 
+# Read into variables first: a denied read must abort the run, never render an
+# empty credential that the service would then start with.
+ACCESS_KEY=$(vault kv get -field="$FIELD_KEY" "$SECRET_PATH")
+SECRET_KEY=$(vault kv get -field="$FIELD_SECRET" "$SECRET_PATH")
+if [ -z "$ACCESS_KEY" ] || [ -z "$SECRET_KEY" ]; then
+  echo "$SERVICE-creds: $SECRET_PATH returned an empty credential" >&2
+  exit 1
+fi
+
 mkdir -p "$(dirname "$CREDS_FILE")"
 tmp="$CREDS_FILE.tmp"
 {
-  printf 'S3_ACCESS_KEY=%s\n' "$(vault kv get -field=root_user "$SECRET_PATH")"
-  printf 'S3_SECRET_KEY=%s\n' "$(vault kv get -field=root_password "$SECRET_PATH")"
+  printf 'S3_ACCESS_KEY=%s\n' "$ACCESS_KEY"
+  printf 'S3_SECRET_KEY=%s\n' "$SECRET_KEY"
 } > "$tmp"
 chmod 0444 "$tmp"
 mv "$tmp" "$CREDS_FILE"

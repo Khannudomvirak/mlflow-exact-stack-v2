@@ -38,7 +38,7 @@ It starts Vault, MinIO, Nessie, MLflow, Spark/Jupyter, and Dremio, loads the two
 
 Buckets: `warehouse` for Iceberg data and `mlflow` for MLflow artifacts. These are local demo credentials only.
 
-You never put this password anywhere: a one-shot `vault-init` step stores it in Vault (`secret/lakehouse/minio`), then gives Nessie and MLflow one Vault identity each. A small sidecar logs in as that service and renders only its own keys, so no two containers read the same credential file. Nothing to set up - see `README.md` for the commands that show it.
+You never put this password anywhere: a one-shot `vault-init` step stores it in Vault (`secret/lakehouse/minio`), then gives Nessie and MLflow one Vault identity each. A small sidecar logs in as that service and renders only its own keys, and each service also gets its own MinIO user locked to a single bucket (`nessie-svc` on `warehouse`, `mlflow-svc` on `mlflow`). Nothing to set up - see `README.md` for the commands that show it.
 
 ## 4. MLflow: create the two runs
 

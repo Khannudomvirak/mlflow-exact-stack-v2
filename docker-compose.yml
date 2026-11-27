@@ -49,11 +49,13 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
       SERVICES: nessie mlflow
       TOKEN_TTL: 1h
+      SEED_ROOT: /s3seed
     entrypoint: ["/bin/sh", "/vault-init.sh"]
     volumes:
       - ./setup/vault_init.sh:/vault-init.sh:ro
       - approle-nessie:/approle/nessie
       - approle-mlflow:/approle/mlflow
+      - s3seed:/s3seed
     restart: "no"
 
   # ------------------------------------------------------------------ S3
@@ -101,6 +103,30 @@ services:
         echo "buckets ready: warehouse, mlflow"
     restart: "no"
 
+  # Gives each consumer its own MinIO user, scoped to its own bucket, using the
+  # keys vault-init generated. Runs in the pinned MinIO image because it ships
+  # `mc`; no new image is pulled for this step.
+  minio-provision:
+    image: cgr.dev/chainguard/minio@sha256:73297936408b731668ca0e835ac9add1a35cb6026a125c2f0cd476d9ef48222c
+    user: "0:0"
+    depends_on:
+      minio:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+      vault-init:
+        condition: service_completed_successfully
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ENDPOINT: http://minio:9000
+      SEED_DIR: /s3seed
+    entrypoint: ["/bin/sh", "/minio-provision.sh"]
+    volumes:
+      - ./setup/minio_provision.sh:/minio-provision.sh:ro
+      - s3seed:/s3seed:ro
+    restart: "no"
+
   # ------------------------------------------------------- Service logins
   # One sidecar per consumer: logs in with that service's AppRole, reads only
   # what its policy allows, and renders it where the service mounts it. This is
@@ -111,11 +137,14 @@ services:
     depends_on:
       vault-init:
         condition: service_completed_successfully
+      minio-provision:
+        condition: service_completed_successfully
     environment:
       VAULT_ADDR: http://vault:8200
       SERVICE: nessie
       APPROLE_DIR: /approle
       CREDS_FILE: /credentials/s3.env
+      SECRET_PATH: secret/lakehouse/s3/nessie
     entrypoint: ["/bin/sh", "/vault-fetch.sh"]
     volumes:
       - ./setup/vault_fetch.sh:/vault-fetch.sh:ro
@@ -129,11 +158,14 @@ services:
     depends_on:
       vault-init:
         condition: service_completed_successfully
+      minio-provision:
+        condition: service_completed_successfully
     environment:
       VAULT_ADDR: http://vault:8200
       SERVICE: mlflow
       APPROLE_DIR: /approle
       CREDS_FILE: /credentials/s3.env
+      SECRET_PATH: secret/lakehouse/s3/mlflow
     entrypoint: ["/bin/sh", "/vault-fetch.sh"]
     volumes:
       - ./setup/vault_fetch.sh:/vault-fetch.sh:ro
@@ -291,6 +323,7 @@ services:
 volumes:
   approle-nessie:
   approle-mlflow:
+  s3seed:
   s3-creds-nessie:
   s3-creds-mlflow:
   minio-data:

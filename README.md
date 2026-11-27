@@ -197,7 +197,10 @@ for asking questions.
   was too small, and the 7.4 GiB setting froze the host during a Dremio pull.
 - Measured 2026-10-25 with the full stack + Dremio: Dremio ~1.3 GB, MLflow
   ~1.6 GB, Spark/Jupyter ~90 MB idle, Nessie ~245 MB, MinIO ~62 MB - about
-  **3.3 GB of containers**, host free RAM ~0.5-0.7 GB.
+  **3.3 GB of containers**, host free RAM ~0.5-0.7 GB. Re-measured 2026-11-28
+  with Vault added: MLflow 1.61, Dremio 1.31, Nessie 0.33, Spark 0.15, MinIO
+  0.08, Vault 0.06 GB - about **3.5 GB** for eleven services (six running, five
+  one-shot init jobs that exit).
 - The stack is tuned for this machine: MLflow runs with one worker, Spark uses a
   768 MB driver, Nessie a 512 MB heap and a 32 MB cache. Dremio runs at its
   required 4 GB heap - its minimum; smaller values are refused.

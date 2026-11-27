@@ -44,6 +44,8 @@ Green outline means running and verified today, all nine boxes including the Tab
 
 Tableau Desktop Free Edition is the dashboard tool; the workbook is included and reads Dremio.
 
+One thing his drawing does not show is Vault. Every credential in the stack is issued per service: Nessie and MLflow each authenticate to Vault as themselves and receive only their own key. One sentence here; the detail belongs in the Q&A.
+
 **Handoff:** Khann Udomvirak takes slides 3–4.
 
 ## Slide 3 — Recipe: Six pieces, assembled bottom-up — Khann Udomvirak
@@ -69,15 +71,19 @@ The role of each:
 
 In production you swap MinIO for S3 and local Spark for managed Spark without touching the notebook.
 
+He drew six boxes and no security box, so name the seventh piece out loud: Vault. It is not in the diagram because it stores no data — it stores credentials, and each service gets its own.
+
 ## Slide 4 — Proof: What is actually running — Khann Udomvirak
 
 This is the honest hardware slide.
 
-On an 8 GB laptop the whole stack, Dremio included, uses about 3.3 GB of containers; MLflow is the biggest at 1.6 GB.
+On an 8 GB laptop the whole stack, Dremio included, uses about 3.5 GB of containers; MLflow is the biggest at 1.6 GB, and Vault — the newest piece — is the smallest at 0.06 GB.
+
+The stack is eleven compose services: six long-running and five one-shot init jobs. The init and sidecar containers exit once they have done their job, so they cost nothing at rest.
 
 The trick was capping the WSL VM at 6 GB: at the old 7.4 GiB setting the first Dremio image pull froze the host. Dremio has a hard 4 GB minimum, which is why it is the heaviest piece.
 
-The 3.3 GB figure is containers only; Tableau is a desktop app outside Docker.
+The 3.5 GB figure is containers only; Tableau is a desktop app outside Docker. It was measured on 2026-11-28 with Vault running.
 
 Nine of nine boxes are live: Dremio and the Tableau dashboard were verified on 2026-10-27.
 
@@ -121,9 +127,11 @@ Then open `Tableau_Churn_Dashboard.twb`, enter `admin123`, and show the **Churn 
 
 The Dremio JDBC driver must be installed once. The first build takes several minutes; later runs are cached.
 
+The stack provisions its own identities on start: Vault issues each service a role, and MinIO gets a matching bucket-scoped user. There is nothing extra to click.
+
 ## Slide 7 — Q&A: Questions we expect — Theng Sivchheng, then all four
 
-Close with the three likely questions and the one-liner: MLflow does not replace the lakehouse; it makes the lakehouse auditable.
+Close with the three likely questions and the one-liner: MLflow does not replace the lakehouse; it makes the lakehouse auditable. Question 2 on the slide is the identity answer: managed services replace the local ones, and each consumer already has its own Vault AppRole and its own bucket-scoped MinIO key; production adds rotation and revocation.
 
 If he asks about the dashboard box, say it is delivered: Dremio runs and Tableau Desktop Free Edition shows the included churn workbook live.
 

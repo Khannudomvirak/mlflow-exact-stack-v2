@@ -293,6 +293,7 @@ Restart Tableau, open `Tableau_Churn_Dashboard.twb`, enter the Dremio `admin123`
 - Readable script: `Presentation_Script.md`.
 - Visual explainer: `Lakehouse_Explainer.png`.
 - Slide 7 is the Q&A prep.
+- The Vault work is on the deck, not a separate slide: slide 4's numbers are re-measured with Vault and a Vault memory row, slide 7's production answer covers per-service identity, and slides 2, 3, 4, 6 and 7 carry Vault notes. Keep them in step with `Presentation_Script.md`.
 
 Speaker order and timings:
 
@@ -337,7 +338,7 @@ Plain-language answer if asked what the project is:
 - The Tableau driver copy, the Tableau password prompt and notebook **Run All** are manual. Dremio's user and Nessie source are provisioned by `Start Demo.bat`.
 - Dremio requires a 4 GB heap minimum. Spark driver 768 MB, Nessie 512 MB heap, and MLflow `--workers=1` are deliberate; do not raise them casually.
 - On the 8 GB laptop keep WSL at 6 GB (`memory=6GB`, `swap=4GB`) and do not run the Spark notebook and Dremio/Tableau at the same time. On 16 GB, 10 GB is a safe WSL cap; bigger-machine setup is still untested.
-- Full stack measured about 3.3 GB of containers, with roughly 0.5–0.7 GB host RAM free on the 8 GB laptop.
+- Full stack measured about 3.3 GB of containers before Vault; re-measured 2026-11-28 with Vault at about 3.5 GB (MLflow 1.61, Dremio 1.31, Nessie 0.33, Spark 0.15, MinIO 0.08, Vault 0.06 GB), with roughly 0.5–0.7 GB host RAM free on the 8 GB laptop. Eleven services: six running, five one-shot init jobs that exit.
 - The public repo includes the generated chart, runtime state, AGENTS.md, and the third-party Dremio jar because the user explicitly wants a complete clone. Do not silently remove them.
 - `Start Demo.bat` creates the Dremio user and Nessie source only when missing; both persist in `dremio-data` and survive restarts and rebuilds.
 - Jupyter and MLflow have no authentication in this stack; keep it local-only and never expose the ports publicly.

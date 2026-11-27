@@ -29,7 +29,7 @@ data version each model learned from.
 |---|---|---|
 | Sources | `data/churn_batch_1.csv`, `data/churn_batch_2.csv` | 2,000 + 500 rows |
 | Data ingestion | `jobs/ingest.py` (Spark) | Spark 3.5.9 |
-| Secrets | **Vault** dev server, KV v2 `secret/lakehouse/minio` | 2.2.2 |
+| Secrets | **Vault** dev server: KV v2 `secret/lakehouse/minio`, one AppRole per service | 2.2.2 |
 | S3 data lake | **MinIO**, bucket `warehouse` | `RELEASE.2026-10-23` |
 | Iceberg tables | Apache Iceberg, Parquet data files | 1.11.0 |
 | Catalog | **Nessie** REST catalog, RocksDB persistence | 0.109.0 |
@@ -39,30 +39,49 @@ data version each model learned from.
 | Compute engine (BI path) | Dremio | optional profile; verified running here |
 | Dashboards | **Tableau Desktop (Free Edition)** via Dremio | `Tableau_Churn_Dashboard.twb` included |
 
-### Vault holds the MinIO credentials
+### Vault: each service logs in as itself
 
 Vault 2.2.2 runs in **dev mode**: in-memory store, already unsealed, fixed root
-token `lakehouse-dev-root`. On every start the one-shot `vault-init` service
-writes the MinIO access key and secret to `secret/lakehouse/minio`, writes a
-read-only `lakehouse-minio-reader` policy, and renders the pair into the shared
-`vault-creds` volume. Nessie, MLflow and `minio-init` source that file at
-container start, so their S3 keys come from Vault rather than from `.env`.
+token `lakehouse-dev-root`. Only the one-shot `vault-init` container holds that
+token. It writes the MinIO access key and secret to `secret/lakehouse/minio`,
+then issues one identity per consumer: a policy that can read that secret, an
+AppRole with a one-hour token TTL, and the role's `role_id` / `secret_id` in that
+consumer's own volume.
+
+Each consumer runs a small `*-creds` sidecar, which is the Vault image again. It
+logs in through that AppRole, reads only what the policy allows, and renders
+`S3_ACCESS_KEY` / `S3_SECRET_KEY` into a volume that only its own service mounts.
+No two services share a rendered file, and no service ever sees the root token.
 
 ```bash
-docker compose logs vault-init
+docker compose logs vault-init nessie-creds mlflow-creds
 docker compose exec vault sh -c 'VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=lakehouse-dev-root vault kv get secret/lakehouse/minio'
-docker compose exec vault sh -c 'VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=lakehouse-dev-root vault policy read lakehouse-minio-reader'
+docker compose exec vault sh -c 'VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=lakehouse-dev-root vault policy read lakehouse-s3-nessie'
+```
+
+To see the least privilege from the outside, log in as one service and try to
+write the secret it just read:
+
+```bash
+docker compose run --rm --no-deps --entrypoint sh nessie-creds -c '
+  export VAULT_ADDR=http://vault:8200
+  export VAULT_TOKEN=$(vault write -field=token auth/approle/login \
+    role_id="$(cat /approle/role_id)" secret_id="$(cat /approle/secret_id)")
+  vault read -field=policies auth/token/lookup-self      # [default lakehouse-s3-nessie]
+  vault kv get -field=root_user secret/lakehouse/minio   # allowed
+  vault kv put secret/lakehouse/minio root_user=x root_password=y'  # 403
 ```
 
 Vault UI: <http://localhost:8200>, token `lakehouse-dev-root` (set
 `VAULT_DEV_ROOT_TOKEN_ID` in `.env` to change it; `VAULT_PORT` moves the port).
 
-Two limits are deliberate. MinIO's own root login is the value being stored, so
+Three limits are deliberate. MinIO's own root login is the value being stored, so
 it has to exist before anything can store it - that pair stays the bootstrap value
-in `.env`. And dev mode keeps secrets in memory, so they are lost on restart and
-re-seeded on the next start. This is a demonstration of secret storage and
-least-privilege reads, not the production story; no dynamic secrets or mTLS are
-attempted here.
+in `.env`, and `minio-init` uses it to create the buckets. Because this demo does
+not create per-service MinIO accounts, the two policies guard the same pair; a
+separate MinIO user per service is the next step, along with token renewal and
+rotation. And dev mode keeps secrets in memory, so they are lost on restart and
+re-seeded on the next start.
 
 ### Dremio and the BI branch
 
@@ -289,8 +308,9 @@ docker compose --profile dremio down -v
 ```
 
 This removes the MinIO data, Nessie RocksDB store, MLflow SQLite database,
-Dremio data (if the optional profile was used) and the rendered `vault-creds`
-file; Vault is in-memory and starts empty anyway. The notebook's saved outputs
+Dremio data (if the optional profile was used) and the four Vault volumes
+(`approle-nessie`, `approle-mlflow`, `s3-creds-nessie`, `s3-creds-mlflow`);
+Vault is in-memory and starts empty anyway. The notebook's saved outputs
 stay in the file. `Start Demo.bat` reloads the data; click Run All once
 after the reset to recreate the two runs and v1. A reset creates new Nessie
 commit hashes; slide 5
@@ -342,7 +362,8 @@ MLflow Exact Stack V2/
 ├── notebooks/
 │   └── lakehouse_mlflow.ipynb  training, MLflow logging, champion alias, chart
 ├── state/ingest_summary.json   commit hashes + row counts from the last ingestion
-├── setup/vault_init.sh         seeds the MinIO credentials into Vault KV, one shot
+├── setup/vault_init.sh         seeds Vault KV, then one policy + AppRole per service
+├── setup/vault_fetch.sh        per-service sidecar: AppRole login, renders only its keys
 ├── assets/                     logos + Tableau_Churn_Dashboard.png proof
 ├── Tableau_Churn_Dashboard.twb live churn dashboard (Dremio -> Tableau)
 ├── Tableau Driver/             Dremio JDBC driver for the workbook

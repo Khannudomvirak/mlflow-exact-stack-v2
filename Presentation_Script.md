@@ -12,10 +12,10 @@ Using the group order on slide 1:
 |---|---|---|---|---|
 | 1 | Khon Sotheara | 1–2 | Opening + architecture | 1:15 |
 | 2 | Khann Udomvirak | 3–4 | Six pieces + running proof | 1:30 |
-| 3 | Chea Sela | 5 | The MLflow layer | 1:00 |
-| 4 | Theng Sivchheng | 6–7 | Demo + Q&A lead | 1:15 |
+| 3 | Chea Sela | 5–6 | The MLflow layer + security | 1:45 |
+| 4 | Theng Sivchheng | 7–8 | Demo + Q&A lead | 1:15 |
 
-Total: about 5 minutes. All four can join the Q&A; Theng leads the close.
+Total: about 5:45 with the security slide. All four can join the Q&A; Theng leads the close.
 
 ## Before you present
 
@@ -89,7 +89,7 @@ Nine of nine boxes are live: Dremio and the Tableau dashboard were verified on 2
 
 Rule for the demo: Dremio and Tableau do not run while the notebook kernel is active on this laptop.
 
-**Handoff:** Chea Sela takes slide 5.
+**Handoff:** Chea Sela takes slides 5–6.
 
 ## Slide 5 — The MLflow layer: From data version to model version — Chea Sela
 
@@ -103,9 +103,23 @@ Each run logs `training_nessie_commit`, the row count, and the metrics. The bett
 
 If he asks why not a snapshot id: Nessie exposes only the snapshot for the current commit; the commit hash is the Git-like handle.
 
-**Handoff:** Theng Sivchheng takes the demo and Q&A.
+## Slide 6 — Security: Who is allowed to read what — Chea Sela
 
-## Slide 6 — Demo: Four minutes, four stops — Theng Sivchheng
+This answers his second question: where do credentials come from, and what does service to service actually mean.
+
+The three cards, left to right:
+
+- **One identity per service.** Vault is the only secret store. Nessie and MLflow each log in with their own AppRole and a one-hour token; the root token exists only in the init container, which exits.
+- **Read only its own secret.** Each policy allows `read` on one path, `secret/lakehouse/s3/nessie` or `.../mlflow`. A denied read aborts the sidecar instead of rendering an empty key.
+- **Its own bucket, its own user.** MinIO gets `nessie-svc` limited to `warehouse` and `mlflow-svc` limited to `mlflow`.
+
+Verified on the running stack: each role reads its own path and is denied a write; each key lists only its own bucket and is refused on the other.
+
+The honest part: this is dev mode on a laptop, the MinIO admin pair is still a bootstrap value from `.env`, and production adds token renewal, rotation, revocation and service-to-service TLS.
+
+**Handoff:** Theng Sivchheng takes slides 7–8.
+
+## Slide 7 — Demo: Four minutes, four stops — Theng Sivchheng
 
 Demo script.
 
@@ -129,13 +143,13 @@ The Dremio JDBC driver must be installed once. The first build takes several min
 
 The stack provisions its own identities on start: Vault issues each service a role, and MinIO gets a matching bucket-scoped user. There is nothing extra to click.
 
-## Slide 7 — Q&A: Questions we expect — Theng Sivchheng, then all four
+## Slide 8 — Q&A: Questions we expect — Theng Sivchheng, then all four
 
-Close with the three likely questions and the one-liner: MLflow does not replace the lakehouse; it makes the lakehouse auditable. Question 2 on the slide is the identity answer: managed services replace the local ones, and each consumer already has its own Vault AppRole and its own bucket-scoped MinIO key; production adds rotation and revocation.
+Close with the three likely questions and the one-liner: MLflow does not replace the lakehouse; it makes the lakehouse auditable. Question 2 on the slide is deliberately short: identity got its own slide, so the detail is on slide 6 and this card only names it.
 
 If he asks about the dashboard box, say it is delivered: Dremio runs and Tableau Desktop Free Edition shows the included churn workbook live.
 
-If he asks about **Vault**, open <http://localhost:8200> and sign in with the token `lakehouse-dev-root`. Auth Methods -> approle lists one role per service; `lakehouse-s3-nessie` and `lakehouse-s3-mlflow` are two read-only policies pointing at two separate secret paths. Nessie and MLflow each log in as themselves and read only their own key. The storage side matches: in MinIO's console the users are `nessie-svc`, restricted to the `warehouse` bucket, and `mlflow-svc`, restricted to `mlflow` - neither can touch the other's bucket. Then say the honest part: this is dev mode on a laptop, the MinIO admin pair is still a bootstrap value, and token renewal, rotation and revocation are the production story.
+If he asks about **Vault**, the deck already covers it on slide 6; if the stack is still up and he wants proof, open <http://localhost:8200> and sign in with the token `lakehouse-dev-root`. Auth Methods -> approle lists one role per service; `lakehouse-s3-nessie` and `lakehouse-s3-mlflow` are two read-only policies pointing at two separate secret paths. Nessie and MLflow each log in as themselves and read only their own key. The storage side matches: in MinIO's console the users are `nessie-svc`, restricted to the `warehouse` bucket, and `mlflow-svc`, restricted to `mlflow` - neither can touch the other's bucket. Then say the honest part: this is dev mode on a laptop, the MinIO admin pair is still a bootstrap value, and token renewal, rotation and revocation are the production story.
 
 If he asks about scale, the same compose file is the recipe; managed services replace the local ones one by one, and the notebook proves the code does not change.
 

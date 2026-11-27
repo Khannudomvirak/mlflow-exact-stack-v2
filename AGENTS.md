@@ -86,7 +86,7 @@ Vault issues each service its own identity and credentials; MinIO stores files; 
   - `START HERE.md` — short universal setup guide.
   - `Presentation_Script.md` — readable speaker script with speaker order.
   - `Lakehouse_Explainer.png` — one-image visual explainer.
-  - `MLflow_Exact_Stack_V2_Presentation.pptx` — 7-slide deck; speaker notes are the original talk track.
+  - `MLflow_Exact_Stack_V2_Presentation.pptx` — 8-slide deck; speaker notes are the original talk track, and slide 6 was added after the recording.
   - `README.md` — technical reference.
   - `AGENTS.md` — this file.
 
@@ -288,12 +288,12 @@ Restart Tableau, open `Tableau_Churn_Dashboard.twb`, enter the Dremio `admin123`
 
 ## Presentation
 
-- Deck: `MLflow_Exact_Stack_V2_Presentation.pptx` — 7 slides.
-- Original talk track: speaker notes on all 7 slides.
+- Deck: `MLflow_Exact_Stack_V2_Presentation.pptx` — 8 slides.
+- Original talk track: speaker notes on all 8 slides.
 - Readable script: `Presentation_Script.md`.
 - Visual explainer: `Lakehouse_Explainer.png`.
-- Slide 7 is the Q&A prep.
-- The Vault work is on the deck, not a separate slide: slide 4's numbers are re-measured with Vault and a Vault memory row, slide 7's production answer covers per-service identity, and slides 2, 3, 4, 6 and 7 carry Vault notes. Keep them in step with `Presentation_Script.md`.
+- Slide 8 is the Q&A prep.
+- Slide 6 (`05 · SECURITY`, "Who is allowed to read what") is the dedicated Vault slide: three cards (identity per service, read only its own secret, own bucket and user) plus a verified-live banner. It was added after the recorded talk, so it exists in the deck and script but not in the original video. Vault also appears on slide 4 (re-measured numbers and a memory row) and in the notes of slides 2, 3, 4, 6, 7 and 8. Keep all of it in step with `Presentation_Script.md`.
 
 Speaker order and timings:
 
@@ -301,8 +301,10 @@ Speaker order and timings:
 |---|---|---|---|
 | Khon Sotheara | 1–2 | Opening + architecture | 1:15 |
 | Khann Udomvirak | 3–4 | Six pieces + running proof | 1:30 |
-| Chea Sela | 5 | The MLflow layer | 1:00 |
-| Theng Sivchheng | 6–7 | Demo + Q&A lead | 1:15 |
+| Chea Sela | 5–6 | The MLflow layer + security | 1:45 |
+| Theng Sivchheng | 7–8 | Demo + Q&A lead | 1:15 |
+
+Total with the security slide: about 5:45.
 
 All four can join Q&A; Theng leads the close.
 

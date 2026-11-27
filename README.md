@@ -390,7 +390,7 @@ MLflow Exact Stack V2/
 ├── START HERE.md               the one-page guide for everyone
 ├── Presentation_Script.md      readable speaker notes / talk track
 ├── Lakehouse_Explainer.png     one-image visual explainer
-├── MLflow_Exact_Stack_V2_Presentation.pptx   the 7-slide V2 deck
+├── MLflow_Exact_Stack_V2_Presentation.pptx   the 8-slide V2 deck
 └── README.md
 ```
 

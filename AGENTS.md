@@ -168,7 +168,7 @@ Requirements: Docker Desktop with WSL2, about 10 GB free disk for images, and fr
 
 The launcher looks for Docker Desktop at `%ProgramFiles%\Docker\Docker\Docker Desktop.exe`, then `%LOCALAPPDATA%\Docker\Docker Desktop.exe`. A per-user install instead lands in `%LOCALAPPDATA%\Programs\DockerDesktop\Docker Desktop.exe`, so `main` reports that Docker Desktop was not found even though the engine works; PR #3 adds that middle probe. Until #3 merges, start Docker Desktop by hand before running the launcher.
 
-`Reset Demo.bat` wipes the nine Docker volumes: MinIO data, Nessie catalog, MLflow database, Dremio data, and the five Vault volumes (`approle-nessie`, `approle-mlflow`, `s3-creds-nessie`, `s3-creds-mlflow`, `s3seed`). Vault itself is in-memory, so it starts empty anyway. It does not delete host files.
+`Reset Demo.bat` wipes the nine Docker volumes: MinIO data, Nessie catalog, MLflow database, Dremio data, and the five Vault volumes (`approle-nessie`, `approle-mlflow`, `s3-creds-nessie`, `s3-creds-mlflow`, `s3seed`). A stack created before the per-service volumes can also leave an unused `vault-creds` volume behind; `down -v` removes it. Vault itself is in-memory, so it starts empty anyway. It does not delete host files.
 
 ### Distribution for friends (Windows-first)
 
@@ -360,7 +360,7 @@ Two separate asks; do not merge them into one feature.
 | Auto-run the notebook (`nbconvert --execute`) | **Rejected** — a manual `Run All` is safer; an auto-run can add runs and move `champion` |
 | Landing page for the four UIs | **Rejected** — out of scope; the launcher already opens the tabs |
 
-Why only one service needs this: of the eleven Compose services, only Dremio has an account anyone creates. MinIO's root login is a single `.env` bootstrap value read by `minio`, while `minio-init`, `nessie` and `mlflow` take their S3 keys from Vault KV (see below); Nessie, MLflow and Jupyter have no auth at all. So "autologin" here is two API calls, not an identity system.
+Why only one service needs a login: of the eleven Compose services, only Dremio has an account anyone creates. MinIO's root login is a single `.env` bootstrap value read by `minio` and `minio-init`; Nessie and MLflow fetch their own keys from Vault through their own AppRole (see below); Nessie, MLflow and Jupyter have no auth at all. So "autologin" here is two API calls, not an identity system.
 
 Accepted behaviour:
 
@@ -394,13 +394,14 @@ The teacher also raised service-to-service identity and HashiCorp Vault. What ex
 | `nessie-creds`, `mlflow-creds` | vault | Log in with their own AppRole and render only their own key into `s3-creds-<svc>`. |
 
 - `depends_on` orders it: `vault` healthy -> `vault-init` -> `minio-provision` (after `minio-init` created the buckets) -> `*-creds` -> `nessie`/`mlflow`. `minio-init` uses the `.env` bootstrap pair, as `minio` itself does.
+- Dev mode is in-memory, so `docker compose restart vault` empties it. `vault-init` restores each key from the `s3seed` volume rather than regenerating it, which keeps MinIO's users and the running consumers valid; that path is exercised by restarting Vault and running `up` again. Keys only rotate if `s3seed` is deleted, and then the consumers must be recreated (`docker compose up -d --force-recreate nessie mlflow`).
 - Keys are reused while Vault still holds them (`vault kv get` first), so a second `up` on a running stack does not rotate a key out from under a serving consumer. A Vault restart wipes the store and issues new keys; `mc admin user add` updates the secret of the existing user, so MinIO keeps exactly one identity per service instead of accumulating users.
 - The `s3seed` volume is read only by `minio-provision`; no application reads it. Consumers read from Vault through their own AppRole.
 - Nessie gets its dotted Quarkus properties through `env "nessie.catalog.secrets.access-key.name=..."` — dash rejects `export` with dots in the name, so `env` is required.
 - MLflow uses the `sh -c '...; exec "$@"' <name>` trick so its pinned `command:` list is unchanged. In compose, shell variables must be written `$$VAR` or Compose interpolates them first.
 - `vault-init`, `minio-provision` and the sidecars run as `user: "0:0"`; the named volumes are root-owned and those images are unprivileged.
 - Tool notes: `vault token lookup` has no `-field` flag (use `vault read -field=policies auth/token/lookup-self`); `mc admin user remove` takes no `--force`; and a KV v2 policy path must be written relative to the mount (`secret/data/<path>`), because `secret/data/secret/...` fails closed. That last mistake originally rendered *empty* keys while the sidecar still exited 0, so `vault_fetch.sh` now aborts on an empty read.
-- Verified 2026-11-27 after a full `down`/`up`: `vault-init`, `minio-init`, `minio-provision`, `nessie-creds`, `mlflow-creds` all exit 0; a second `up` logs `reusing the existing key` and leaves the rendered files unchanged; `mc admin user list` shows exactly `nessie-svc` and `mlflow-svc`; each key lists only its own bucket and gets `AccessDenied` on the other; as the nessie role its own KV path reads while another service's path, a write and `vault policy list` all return 403; `spark-sql` counts **2,500** rows, Dremio's SQL returns 2,500, MLflow round-trips an object, and Nessie main stays at `640214d2...` matching `state/ingest_summary.json`.
+- Verified 2026-11-27 after a full `down`/`up`: `vault-init`, `minio-init`, `minio-provision`, `nessie-creds`, `mlflow-creds` all exit 0; a second `up` logs `reusing the existing key` and leaves the rendered files unchanged; after `docker compose restart vault` plus an `up` the log says `restored the <svc> key from s3seed`, the rendered keys are byte-identical and an MLflow S3 write still succeeds; `mc admin user list` shows exactly `nessie-svc` and `mlflow-svc`; each key lists only its own bucket and gets `AccessDenied` on the other; as the nessie role its own KV path reads while another service's path, a write and `vault policy list` all return 403; `spark-sql` counts **2,500** rows, Dremio's SQL returns 2,500, MLflow round-trips an object, and Nessie main stays at `640214d2...` matching `state/ingest_summary.json`.
 
 **Deliberately not done:** token renewal/rotation/revocation, dynamic secrets, mTLS, and delivery of `role_id`/`secret_id` by an orchestrator instead of a volume. Dremio and Tableau still connect with the MinIO admin pair its Nessie source was configured with. Dev mode keeps secrets in memory, so every restart re-issues them.
 

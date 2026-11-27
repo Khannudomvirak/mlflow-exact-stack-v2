@@ -317,7 +317,8 @@ docker compose --profile dremio down -v
 
 This removes the MinIO data, Nessie RocksDB store, MLflow SQLite database,
 Dremio data (if the optional profile was used) and the five Vault volumes (`approle-nessie`, `approle-mlflow`, `s3-creds-nessie`,
-`s3-creds-mlflow`, `s3seed`);
+`s3-creds-mlflow`, `s3seed`); a stack created before these volumes existed can also
+leave an unused `vault-creds` volume, which `down -v` removes;
 Vault is in-memory and starts empty anyway. The notebook's saved outputs
 stay in the file. `Start Demo.bat` reloads the data; click Run All once
 after the reset to recreate the two runs and v1. A reset creates new Nessie
@@ -333,6 +334,11 @@ workbook and enter the password.
 - **`docker compose` cannot connect** — `Start Demo.bat` starts Docker
   Desktop if it is installed. If it still fails, open Docker Desktop, wait for
   the engine, and run it again.
+- **S3 access breaks after restarting Vault** — Vault keeps its store in memory, so
+  `docker compose restart vault` empties it. `vault-init` restores the same keys from
+  the `s3seed` volume on the next `up`, and running services keep working meanwhile.
+  If that volume was deleted the keys rotate, so recreate the consumers:
+  `docker compose up -d --force-recreate nessie mlflow`.
 - **Port already in use** — change `MLFLOW_PORT`, `JUPYTER_PORT`, `MINIO_API_PORT`,
   `MINIO_CONSOLE_PORT`, `NESSIE_PORT` or `VAULT_PORT` in a `.env` file next to
   `docker-compose.yml`. Dremio's ports `9047`, `31010`, and `32010` are fixed;

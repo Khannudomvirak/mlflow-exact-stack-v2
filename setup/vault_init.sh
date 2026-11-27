@@ -68,6 +68,14 @@ for svc in $SERVICES; do
   if existing=$(vault kv get -field=secret_key "$path" 2>/dev/null) && [ -n "$existing" ]; then
     secret_key="$existing"
     echo "vault-init: reusing the existing key for $svc"
+  elif [ -f "$SEED_ROOT/$svc.env" ] &&
+       existing=$(sed -n 's/^SECRET_KEY=//p' "$SEED_ROOT/$svc.env") && [ -n "$existing" ]; then
+    # Dev mode is in-memory: a Vault restart empties it. Restoring the key the
+    # volume already holds keeps MinIO's user and the running consumers valid
+    # instead of rotating a credential they cannot pick up without a recreate.
+    secret_key="$existing"
+    vault kv put "$path" access_key="$access_key" secret_key="$secret_key" >/dev/null
+    echo "vault-init: restored the $svc key from s3seed"
   else
     secret_key=$(random_hex 40)
     vault kv put "$path" access_key="$access_key" secret_key="$secret_key" >/dev/null

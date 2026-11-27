@@ -137,7 +137,7 @@ CSV batches
         -> Spark reads same table -> Jupyter -> MLflow
 ```
 
-- **Vault** = secret storage (dev mode) for the MinIO credentials.
+- **Vault** = dev-mode secret store; gives each consumer its own AppRole identity and its own bucket-scoped MinIO key.
 - **MinIO** = S3-compatible object storage.
 - **Iceberg** = table format on Parquet (schema, snapshots, ACID, time travel).
 - **Nessie** = catalog with Git-style commits for the whole warehouse.

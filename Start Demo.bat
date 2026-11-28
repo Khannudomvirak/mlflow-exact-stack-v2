@@ -10,6 +10,7 @@ docker info >nul 2>&1
 if not errorlevel 1 goto docker_ready
 
 set "DOCKER_EXE=%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
+if not exist "%DOCKER_EXE%" set "DOCKER_EXE=%LOCALAPPDATA%\Programs\DockerDesktop\Docker Desktop.exe"
 if not exist "%DOCKER_EXE%" set "DOCKER_EXE=%LOCALAPPDATA%\Docker\Docker Desktop.exe"
 if not exist "%DOCKER_EXE%" (
   echo Docker Desktop was not found in the usual places.

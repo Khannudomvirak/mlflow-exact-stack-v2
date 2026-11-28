@@ -10,33 +10,51 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
-      # The push event only carries the login, so look up the profile name.
-      # Falls back to the login when the user has not set a display name.
-      - name: Resolve pusher display name
+      # A merged PR pushes one merge commit, and the push event credits whoever
+      # clicked Merge. Look up the PR behind the commit so the author is named.
+      # The push event also only carries logins, so map those to profile names.
+      - name: Work out who gets credit
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
           ACTOR: ${{ github.actor }}
+          BRANCH: ${{ github.ref_name }}
         run: |
-          NAME=$(gh api "users/$ACTOR" --jq '.name // empty' 2>/dev/null || true)
-          if [ -z "$NAME" ]; then
-            PUSHER="$ACTOR"
+          name_of() {
+            [ -z "$1" ] && return 0
+            gh api "users/$1" --jq '.name // empty' 2>/dev/null || true
+          }
+
+          ACTOR_NAME=$(name_of "$ACTOR")
+          [ -z "$ACTOR_NAME" ] && ACTOR_NAME="$ACTOR"
+
+          info=$(gh api "repos/$REPO/commits/$SHA/pulls" \
+            --jq '.[0] | "\(.user.login // "") \(.number // "")"' 2>/dev/null || true)
+          PR_LOGIN=${info%% *}
+          PR_NUM=${info##* }
+
+          if [ -n "$PR_LOGIN" ] && [ "$PR_LOGIN" != "$ACTOR" ]; then
+            AUTHOR_NAME=$(name_of "$PR_LOGIN")
+            [ -z "$AUTHOR_NAME" ] && AUTHOR_NAME="$PR_LOGIN"
+            CREDIT="$AUTHOR_NAME's PR #$PR_NUM, merged by $ACTOR_NAME"
           else
-            PUSHER="$NAME (@$ACTOR)"
+            CREDIT="$ACTOR_NAME pushed to $BRANCH"
           fi
-          echo "PUSHER=$PUSHER" >> "$GITHUB_ENV"
+
+          echo "CREDIT=$CREDIT" >> "$GITHUB_ENV"
+          echo "crediting: $CREDIT"
 
       - name: Send commit to Telegram
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          ACTOR: ${{ github.actor }}
-          REPO: ${{ github.repository }}
-          BRANCH: ${{ github.ref_name }}
           COMMIT_MSG: ${{ github.event.head_commit.message }}
           COMMIT_URL: ${{ github.event.head_commit.url }}
         run: |
@@ -53,8 +71,8 @@ jobs:
           # Telegram caps a message at 4096 chars; keep some headroom.
           MSG=$(printf '%s' "$COMMIT_MSG" | head -c 1500)
 
-          TEXT=$(printf '\xF0\x9F\x94\xA8 %s pushed to %s\n\n%s\n\n%s' \
-            "$PUSHER" "$BRANCH" "$MSG" "$COMMIT_URL")
+          TEXT=$(printf '\xF0\x9F\x94\xA8 %s\n\n%s\n\n%s' \
+            "$CREDIT" "$MSG" "$COMMIT_URL")
 
           PAYLOAD=$(jq -n \
             --arg chat "$TELEGRAM_CHAT_ID" \

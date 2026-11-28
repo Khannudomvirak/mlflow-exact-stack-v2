@@ -15,6 +15,21 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
+      # The push event only carries the login, so look up the profile name.
+      # Falls back to the login when the user has not set a display name.
+      - name: Resolve pusher display name
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          NAME=$(gh api "users/$ACTOR" --jq '.name // empty' 2>/dev/null || true)
+          if [ -z "$NAME" ]; then
+            PUSHER="$ACTOR"
+          else
+            PUSHER="$NAME (@$ACTOR)"
+          fi
+          echo "PUSHER=$PUSHER" >> "$GITHUB_ENV"
+
       - name: Send commit to Telegram
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -39,7 +54,7 @@ jobs:
           MSG=$(printf '%s' "$COMMIT_MSG" | head -c 1500)
 
           TEXT=$(printf '\xF0\x9F\x94\xA8 %s pushed to %s\n\n%s\n\n%s' \
-            "$ACTOR" "$BRANCH" "$MSG" "$COMMIT_URL")
+            "$PUSHER" "$BRANCH" "$MSG" "$COMMIT_URL")
 
           PAYLOAD=$(jq -n \
             --arg chat "$TELEGRAM_CHAT_ID" \

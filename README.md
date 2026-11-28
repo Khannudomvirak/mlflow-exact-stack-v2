@@ -29,7 +29,7 @@ data version each model learned from.
 |---|---|---|
 | Sources | `data/churn_batch_1.csv`, `data/churn_batch_2.csv` | 2,000 + 500 rows |
 | Data ingestion | `jobs/ingest.py` (Spark) | Spark 3.5.9 |
-| Secrets | **Vault** dev server, KV v2 `secret/lakehouse/minio` | 2.2.2 |
+| Secrets | **Vault** dev server: one AppRole + KV path + MinIO user per service | 2.2.2 |
 | S3 data lake | **MinIO**, bucket `warehouse` | `RELEASE.2026-10-23` |
 | Iceberg tables | Apache Iceberg, Parquet data files | 1.11.0 |
 | Catalog | **Nessie** REST catalog, RocksDB persistence | 0.109.0 |
@@ -39,30 +39,57 @@ data version each model learned from.
 | Compute engine (BI path) | Dremio | optional profile; verified running here |
 | Dashboards | **Tableau Desktop (Free Edition)** via Dremio | `Tableau_Churn_Dashboard.twb` included |
 
-### Vault holds the MinIO credentials
+### Vault: each service logs in as itself
 
 Vault 2.2.2 runs in **dev mode**: in-memory store, already unsealed, fixed root
-token `lakehouse-dev-root`. On every start the one-shot `vault-init` service
-writes the MinIO access key and secret to `secret/lakehouse/minio`, writes a
-read-only `lakehouse-minio-reader` policy, and renders the pair into the shared
-`vault-creds` volume. Nessie, MLflow and `minio-init` source that file at
-container start, so their S3 keys come from Vault rather than from `.env`.
+token `lakehouse-dev-root`. Only the one-shot `vault-init` container holds that
+token. For each consumer it generates an S3 key pair at that service's own path
+(`secret/lakehouse/s3/nessie`, `secret/lakehouse/s3/mlflow`), writes a policy that
+can read only that path, and creates an AppRole with a one-hour token TTL plus
+that role's `role_id` / `secret_id` in the service's own volume.
+
+Each consumer runs a small `*-creds` sidecar, which is the Vault image again. It
+logs in through that AppRole, reads only its own secret, and renders
+`S3_ACCESS_KEY` / `S3_SECRET_KEY` into a volume that only its own service mounts.
+No two services share a credential, and no service ever sees the root token.
+
+The storage side matches. `minio-provision` (the pinned MinIO image, which ships
+`mc`) registers that same key pair as a MinIO user restricted to one bucket:
+`nessie-svc` on `warehouse`, `mlflow-svc` on `mlflow`, each with a canned policy
+that allows list/read/write inside its bucket and nothing else.
 
 ```bash
-docker compose logs vault-init
-docker compose exec vault sh -c 'VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=lakehouse-dev-root vault kv get secret/lakehouse/minio'
-docker compose exec vault sh -c 'VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=lakehouse-dev-root vault policy read lakehouse-minio-reader'
+docker compose logs vault-init minio-provision nessie-creds mlflow-creds
+docker compose exec vault sh -c 'VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=lakehouse-dev-root vault kv get secret/lakehouse/s3/mlflow'
+docker compose exec vault sh -c 'VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=lakehouse-dev-root vault policy read lakehouse-s3-nessie'
 ```
+
+To see the least privilege, log in as one service and try to read another
+service's key or write its own:
+
+```bash
+docker compose run --rm --no-deps --entrypoint sh nessie-creds -c '
+  export VAULT_ADDR=http://vault:8200
+  export VAULT_TOKEN=$(vault write -field=token auth/approle/login \
+    role_id="$(cat /approle/role_id)" secret_id="$(cat /approle/secret_id)")
+  vault read -field=policies auth/token/lookup-self            # [default lakehouse-s3-nessie]
+  vault kv get -field=access_key secret/lakehouse/s3/nessie    # allowed
+  vault kv get -field=access_key secret/lakehouse/s3/mlflow    # 403
+  vault kv put secret/lakehouse/s3/nessie access_key=x secret_key=y'  # 403
+```
+
+The same split holds at the bucket level: MLflow's key cannot list `warehouse`
+and Nessie's cannot list `mlflow`; both answer `AccessDenied`.
 
 Vault UI: <http://localhost:8200>, token `lakehouse-dev-root` (set
 `VAULT_DEV_ROOT_TOKEN_ID` in `.env` to change it; `VAULT_PORT` moves the port).
 
-Two limits are deliberate. MinIO's own root login is the value being stored, so
-it has to exist before anything can store it - that pair stays the bootstrap value
-in `.env`. And dev mode keeps secrets in memory, so they are lost on restart and
-re-seeded on the next start. This is a demonstration of secret storage and
-least-privilege reads, not the production story; no dynamic secrets or mTLS are
-attempted here.
+Two limits are deliberate. MinIO's own root login has to exist before anything
+can store it, so that pair still arrives from `.env`; it is kept at
+`secret/lakehouse/minio` for Dremio and for humans, readable only by the root
+token. And dev mode keeps secrets in memory, so they are lost on restart and
+re-seeded on the next start: there is no token renewal, rotation or revocation
+here.
 
 ### Dremio and the BI branch
 
@@ -170,7 +197,10 @@ for asking questions.
   was too small, and the 7.4 GiB setting froze the host during a Dremio pull.
 - Measured 2026-10-25 with the full stack + Dremio: Dremio ~1.3 GB, MLflow
   ~1.6 GB, Spark/Jupyter ~90 MB idle, Nessie ~245 MB, MinIO ~62 MB - about
-  **3.3 GB of containers**, host free RAM ~0.5-0.7 GB.
+  **3.3 GB of containers**, host free RAM ~0.5-0.7 GB. Re-measured 2026-11-28
+  with Vault added: MLflow 1.61, Dremio 1.31, Nessie 0.33, Spark 0.15, MinIO
+  0.08, Vault 0.06 GB - about **3.5 GB** for eleven services (six running, five
+  one-shot init jobs that exit).
 - The stack is tuned for this machine: MLflow runs with one worker, Spark uses a
   768 MB driver, Nessie a 512 MB heap and a 32 MB cache. Dremio runs at its
   required 4 GB heap - its minimum; smaller values are refused.
@@ -289,8 +319,10 @@ docker compose --profile dremio down -v
 ```
 
 This removes the MinIO data, Nessie RocksDB store, MLflow SQLite database,
-Dremio data (if the optional profile was used) and the rendered `vault-creds`
-file; Vault is in-memory and starts empty anyway. The notebook's saved outputs
+Dremio data (if the optional profile was used) and the five Vault volumes (`approle-nessie`, `approle-mlflow`, `s3-creds-nessie`,
+`s3-creds-mlflow`, `s3seed`); a stack created before these volumes existed can also
+leave an unused `vault-creds` volume, which `down -v` removes;
+Vault is in-memory and starts empty anyway. The notebook's saved outputs
 stay in the file. `Start Demo.bat` reloads the data; click Run All once
 after the reset to recreate the two runs and v1. A reset creates new Nessie
 commit hashes; slide 5
@@ -305,6 +337,11 @@ workbook and enter the password.
 - **`docker compose` cannot connect** — `Start Demo.bat` starts Docker
   Desktop if it is installed. If it still fails, open Docker Desktop, wait for
   the engine, and run it again.
+- **S3 access breaks after restarting Vault** — Vault keeps its store in memory, so
+  `docker compose restart vault` empties it. `vault-init` restores the same keys from
+  the `s3seed` volume on the next `up`, and running services keep working meanwhile.
+  If that volume was deleted the keys rotate, so recreate the consumers:
+  `docker compose up -d --force-recreate nessie mlflow`.
 - **Port already in use** — change `MLFLOW_PORT`, `JUPYTER_PORT`, `MINIO_API_PORT`,
   `MINIO_CONSOLE_PORT`, `NESSIE_PORT` or `VAULT_PORT` in a `.env` file next to
   `docker-compose.yml`. Dremio's ports `9047`, `31010`, and `32010` are fixed;
@@ -342,7 +379,9 @@ MLflow Exact Stack V2/
 ├── notebooks/
 │   └── lakehouse_mlflow.ipynb  training, MLflow logging, champion alias, chart
 ├── state/ingest_summary.json   commit hashes + row counts from the last ingestion
-├── setup/vault_init.sh         seeds the MinIO credentials into Vault KV, one shot
+├── setup/vault_init.sh         seeds Vault KV, then one policy + AppRole per service
+├── setup/vault_fetch.sh        per-service sidecar: AppRole login, renders only its keys
+├── setup/minio_provision.sh    one bucket-scoped MinIO user per service, via mc
 ├── assets/                     logos + Tableau_Churn_Dashboard.png proof
 ├── Tableau_Churn_Dashboard.twb live churn dashboard (Dremio -> Tableau)
 ├── Tableau Driver/             Dremio JDBC driver for the workbook
@@ -351,7 +390,7 @@ MLflow Exact Stack V2/
 ├── START HERE.md               the one-page guide for everyone
 ├── Presentation_Script.md      readable speaker notes / talk track
 ├── Lakehouse_Explainer.png     one-image visual explainer
-├── MLflow_Exact_Stack_V2_Presentation.pptx   the 7-slide V2 deck
+├── MLflow_Exact_Stack_V2_Presentation.pptx   the 8-slide V2 deck
 └── README.md
 ```
 

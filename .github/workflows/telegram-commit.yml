@@ -1,0 +1,52 @@
+name: Telegram commit notify
+
+# Posts every push to main into the team's Telegram group.
+# Needs two repository secrets:
+#   TELEGRAM_BOT_TOKEN  - from @BotFather
+#   TELEGRAM_CHAT_ID    - the group's id, e.g. -1001234567890
+on:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send commit to Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ACTOR: ${{ github.actor }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          COMMIT_URL: ${{ github.event.head_commit.url }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "::warning::TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID secrets are not set - skipping."
+            exit 0
+          fi
+
+          if [ -z "$COMMIT_MSG" ]; then
+            echo "No head commit in this event (branch delete?), nothing to send."
+            exit 0
+          fi
+
+          # Telegram caps a message at 4096 chars; keep some headroom.
+          MSG=$(printf '%s' "$COMMIT_MSG" | head -c 1500)
+
+          TEXT=$(printf '\xF0\x9F\x94\xA8 %s pushed to %s\n\n%s\n\n%s' \
+            "$ACTOR" "$BRANCH" "$MSG" "$COMMIT_URL")
+
+          PAYLOAD=$(jq -n \
+            --arg chat "$TELEGRAM_CHAT_ID" \
+            --arg text "$TEXT" \
+            '{chat_id: $chat, text: $text, disable_web_page_preview: false}')
+
+          curl -sS --fail-with-body -X POST \
+            "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+            -H 'Content-Type: application/json' \
+            -d "$PAYLOAD"

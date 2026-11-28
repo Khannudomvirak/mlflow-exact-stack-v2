@@ -7,7 +7,51 @@ name: lakehouse-exact
 #   MLflow is the added model-lifecycle layer.
 
 services:
+  # ------------------------------------------------------------- Secrets
+  # Dev-mode Vault: in-memory store, already unsealed, fixed root token.
+  # Demo only - the store is lost on restart and the port must stay local.
+  vault:
+    image: hashicorp/vault:2.2.2
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID:-lakehouse-dev-root}
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+      VAULT_ADDR: http://127.0.0.1:8200
+    command: server -dev
+    ports:
+      - "${VAULT_PORT:-8200}:8200"
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  # One shot: seeds secret/lakehouse/minio and renders it to the vault-creds
+  # volume, so Nessie, MLflow and minio-init read the S3 keys from Vault
+  # instead of from .env. Safe to re-run.
+  vault-init:
+    image: hashicorp/vault:2.2.2
+    # The image runs as an unprivileged user; root keeps the named volume simple.
+    user: "0:0"
+    depends_on:
+      vault:
+        condition: service_healthy
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: ${VAULT_DEV_ROOT_TOKEN_ID:-lakehouse-dev-root}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    entrypoint: ["/bin/sh", "/vault-init.sh"]
+    volumes:
+      - ./setup/vault_init.sh:/vault-init.sh:ro
+      - vault-creds:/vault-creds
+    restart: "no"
+
   # ------------------------------------------------------------------ S3
+  # MinIO's own root login cannot come from Vault: it has to exist before
+  # anything can store it. That pair stays the one bootstrap secret in .env.
   minio:
     # MinIO RELEASE.2026-10-23, pinned by digest for reproducible builds.
     image: cgr.dev/chainguard/minio@sha256:73297936408b731668ca0e835ac9add1a35cb6026a125c2f0cd476d9ef48222c
@@ -28,14 +72,21 @@ services:
   minio-init:
     image: amazon/aws-cli@sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1
     depends_on:
-      - minio
+      minio:
+        condition: service_started
+      vault-init:
+        condition: service_completed_successfully
     environment:
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       AWS_DEFAULT_REGION: us-east-1
+    volumes:
+      - vault-creds:/vault-creds:ro
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        set -eu
+        . /vault-creds/minio.env
+        export AWS_ACCESS_KEY_ID="$$MINIO_ROOT_USER"
+        export AWS_SECRET_ACCESS_KEY="$$MINIO_ROOT_PASSWORD"
         until aws --endpoint-url http://minio:9000 s3 ls >/dev/null 2>&1; do
           echo "waiting for MinIO..."
           sleep 2
@@ -52,6 +103,8 @@ services:
     depends_on:
       minio-init:
         condition: service_completed_successfully
+      vault-init:
+        condition: service_completed_successfully
     environment:
       # Persist catalog commits in RocksDB (survives a container restart).
       NESSIE_VERSION_STORE_TYPE: ROCKSDB
@@ -66,14 +119,24 @@ services:
       nessie.catalog.service.s3.default-options.region: us-east-1
       nessie.catalog.service.s3.default-options.path-style-access: "true"
       nessie.catalog.service.s3.default-options.access-key: urn:nessie-secret:quarkus:nessie.catalog.secrets.access-key
-      nessie.catalog.secrets.access-key.name: ${MINIO_ROOT_USER:-minioadmin}
-      nessie.catalog.secrets.access-key.secret: ${MINIO_ROOT_PASSWORD:-minioadmin}
       nessie.catalog.service.s3.default-options.endpoint: http://minio:9000/
       nessie.catalog.service.s3.default-options.external-endpoint: http://minio:9000/
+    # The access-key pair below is exported from the file vault-init rendered,
+    # not from .env. The dotted names are Quarkus environment properties.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        . /vault-creds/minio.env
+        exec env \
+          "nessie.catalog.secrets.access-key.name=$$MINIO_ROOT_USER" \
+          "nessie.catalog.secrets.access-key.secret=$$MINIO_ROOT_PASSWORD" \
+          /opt/jboss/container/java/run/run-java.sh
     ports:
       - "${NESSIE_PORT:-19120}:19120"
     volumes:
       - nessie-data:/nessie/data
+      - vault-creds:/vault-creds:ro
     restart: unless-stopped
 
   # --------------------------------------------------------------- MLflow
@@ -88,15 +151,27 @@ services:
     depends_on:
       minio-init:
         condition: service_completed_successfully
+      vault-init:
+        condition: service_completed_successfully
     environment:
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
       MLFLOW_S3_IGNORE_TLS: "true"
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       AWS_DEFAULT_REGION: us-east-1
       # Lets the Assistant API accept the browser's request, which arrives from
       # the Docker gateway rather than loopback. See setup/enable_mlflow_assistant.py.
       MLFLOW_ENABLE_REMOTE_ASSISTANT: "true"
+    # The S3 keys come from the file vault-init rendered from Vault KV.
+    # "$$@" is the command list below, exec'd once the env is loaded.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        . /vault-creds/minio.env
+        export AWS_ACCESS_KEY_ID="$$MINIO_ROOT_USER"
+        export AWS_SECRET_ACCESS_KEY="$$MINIO_ROOT_PASSWORD"
+        exec "$$@"
+      - mlflow-entrypoint
     command:
       - mlflow
       - server
@@ -111,6 +186,7 @@ services:
       - "${MLFLOW_PORT:-5000}:5000"
     volumes:
       - mlflow-data:/mlflow
+      - vault-creds:/vault-creds:ro
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=3)"]
       interval: 10s
@@ -167,6 +243,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  vault-creds:
   minio-data:
   nessie-data:
   mlflow-data:

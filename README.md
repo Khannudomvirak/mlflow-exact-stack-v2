@@ -29,6 +29,7 @@ data version each model learned from.
 |---|---|---|
 | Sources | `data/churn_batch_1.csv`, `data/churn_batch_2.csv` | 2,000 + 500 rows |
 | Data ingestion | `jobs/ingest.py` (Spark) | Spark 3.5.9 |
+| Secrets | **Vault** dev server, KV v2 `secret/lakehouse/minio` | 2.2.2 |
 | S3 data lake | **MinIO**, bucket `warehouse` | `RELEASE.2026-10-23` |
 | Iceberg tables | Apache Iceberg, Parquet data files | 1.11.0 |
 | Catalog | **Nessie** REST catalog, RocksDB persistence | 0.109.0 |
@@ -37,6 +38,31 @@ data version each model learned from.
 | Model lifecycle | **MLflow** tracking server + registry, artifacts in S3 | 3.17.2 |
 | Compute engine (BI path) | Dremio | optional profile; verified running here |
 | Dashboards | **Tableau Desktop (Free Edition)** via Dremio | `Tableau_Churn_Dashboard.twb` included |
+
+### Vault holds the MinIO credentials
+
+Vault 2.2.2 runs in **dev mode**: in-memory store, already unsealed, fixed root
+token `lakehouse-dev-root`. On every start the one-shot `vault-init` service
+writes the MinIO access key and secret to `secret/lakehouse/minio`, writes a
+read-only `lakehouse-minio-reader` policy, and renders the pair into the shared
+`vault-creds` volume. Nessie, MLflow and `minio-init` source that file at
+container start, so their S3 keys come from Vault rather than from `.env`.
+
+```bash
+docker compose logs vault-init
+docker compose exec vault sh -c 'VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=lakehouse-dev-root vault kv get secret/lakehouse/minio'
+docker compose exec vault sh -c 'VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=lakehouse-dev-root vault policy read lakehouse-minio-reader'
+```
+
+Vault UI: <http://localhost:8200>, token `lakehouse-dev-root` (set
+`VAULT_DEV_ROOT_TOKEN_ID` in `.env` to change it; `VAULT_PORT` moves the port).
+
+Two limits are deliberate. MinIO's own root login is the value being stored, so
+it has to exist before anything can store it - that pair stays the bootstrap value
+in `.env`. And dev mode keeps secrets in memory, so they are lost on restart and
+re-seeded on the next start. This is a demonstration of secret storage and
+least-privilege reads, not the production story; no dynamic secrets or mTLS are
+attempted here.
 
 ### Dremio and the BI branch
 
@@ -167,6 +193,7 @@ the lakehouse does not already have them. It then opens the UIs:
 - MLflow: <http://localhost:5000>
 - MinIO console: <http://localhost:9001> (`minioadmin` / `minioadmin`)
 - Nessie API: <http://localhost:19120/api/v2/trees/main>
+- Vault: <http://localhost:8200> (token `lakehouse-dev-root`; dev mode)
 - Dremio: <http://localhost:9047>
 
 `Start Demo.bat` is the only launcher in the folder. It always uses the
@@ -261,16 +288,17 @@ Double-click **`Reset Demo.bat`**, or run:
 docker compose --profile dremio down -v
 ```
 
-This removes the MinIO data, Nessie RocksDB store, MLflow SQLite database and
-Dremio data (if the optional profile was used). The notebook's saved outputs
+This removes the MinIO data, Nessie RocksDB store, MLflow SQLite database,
+Dremio data (if the optional profile was used) and the rendered `vault-creds`
+file; Vault is in-memory and starts empty anyway. The notebook's saved outputs
 stay in the file. `Start Demo.bat` reloads the data; click Run All once
 after the reset to recreate the two runs and v1. A reset creates new Nessie
 commit hashes; slide 5
 uses hash slots, so it stays valid—read the live values from the notebook or
 MLflow (the row counts and metrics are deterministic). The Tableau workbook and
-its driver live outside Docker and are not wiped; after the reset, recreate the
-Dremio `admin123` user and Nessie source, then reopen the workbook and enter the
-new password.
+its driver live outside Docker and are not wiped; after the reset, `Start Demo.bat`
+recreates the Dremio `admin123` user and Nessie source itself, so just reopen the
+workbook and enter the password.
 
 ## Troubleshooting
 
@@ -278,7 +306,7 @@ new password.
   Desktop if it is installed. If it still fails, open Docker Desktop, wait for
   the engine, and run it again.
 - **Port already in use** — change `MLFLOW_PORT`, `JUPYTER_PORT`, `MINIO_API_PORT`,
-  `MINIO_CONSOLE_PORT` or `NESSIE_PORT` in a `.env` file next to
+  `MINIO_CONSOLE_PORT`, `NESSIE_PORT` or `VAULT_PORT` in a `.env` file next to
   `docker-compose.yml`. Dremio's ports `9047`, `31010`, and `32010` are fixed;
   stop the conflicting app instead.
 - **Notebook says `state/ingest_summary.json` is missing** — run the manual
@@ -303,7 +331,7 @@ new password.
 
 ```
 MLflow Exact Stack V2/
-├── docker-compose.yml          MinIO, Nessie, MLflow, Spark+Jupyter, optional Dremio
+├── docker-compose.yml          Vault, MinIO, Nessie, MLflow, Spark+Jupyter, optional Dremio
 ├── Dockerfile.spark            Spark 3.5.9 + Iceberg 1.11.0 + Jupyter + MLflow client
 ├── Dockerfile.mlflow           MLflow 3.17.2 + boto3 for S3 artifacts, plus the assistant patch
 ├── conf/spark-defaults.conf    Nessie REST catalog + memory settings
@@ -314,6 +342,7 @@ MLflow Exact Stack V2/
 ├── notebooks/
 │   └── lakehouse_mlflow.ipynb  training, MLflow logging, champion alias, chart
 ├── state/ingest_summary.json   commit hashes + row counts from the last ingestion
+├── setup/vault_init.sh         seeds the MinIO credentials into Vault KV, one shot
 ├── assets/                     logos + Tableau_Churn_Dashboard.png proof
 ├── Tableau_Churn_Dashboard.twb live churn dashboard (Dremio -> Tableau)
 ├── Tableau Driver/             Dremio JDBC driver for the workbook

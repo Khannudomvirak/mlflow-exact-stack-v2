@@ -9,7 +9,7 @@ Keep the whole folder together; every path is relative.
 
 - Docker Desktop is installed with the WSL2 backend. Start it and wait for the engine.
 - Allow about 10 GB free disk for the first image pull, plus space for Tableau Desktop.
-- Ports `5000`, `8888`, `9000`, `9001`, `19120`, `9047`, `31010`, and `32010` must be free.
+- Ports `5000`, `8200`, `8888`, `9000`, `9001`, `19120`, `9047`, `31010`, and `32010` must be free.
 
 ## 1. Reset only if reusing old data
 
@@ -28,7 +28,7 @@ This wipes the old MinIO data, Nessie catalog, MLflow database, and Dremio data.
 
 Double-click `Start Demo.bat`.
 
-It starts MinIO, Nessie, MLflow, Spark/Jupyter, and Dremio, loads the two Iceberg versions if the lakehouse is empty, and opens the UIs. The first run pulls images and can take several minutes.
+It starts Vault, MinIO, Nessie, MLflow, Spark/Jupyter, and Dremio, loads the two Iceberg versions if the lakehouse is empty, and opens the UIs. The first run pulls images and can take several minutes.
 
 ## 3. MinIO login
 
@@ -37,6 +37,8 @@ It starts MinIO, Nessie, MLflow, Spark/Jupyter, and Dremio, loads the two Iceber
 - Password: `minioadmin`
 
 Buckets: `warehouse` for Iceberg data and `mlflow` for MLflow artifacts. These are local demo credentials only.
+
+You never put this password anywhere: a one-shot `vault-init` step stores it in Vault (`secret/lakehouse/minio`) and hands it to MinIO's clients. Nothing to set up - see `README.md` for the two commands that show it.
 
 ## 4. MLflow: create the two runs
 
@@ -103,6 +105,7 @@ Restart Tableau. Open `Tableau_Churn_Dashboard.twb` in this folder and enter `ad
 - MLflow: <http://localhost:5000>
 - MinIO: <http://localhost:9001>
 - Nessie: <http://localhost:19120/api/v2/trees/main>
+- Vault: <http://localhost:8200> (token `lakehouse-dev-root`)
 - Dremio: <http://localhost:9047>
 
 ## If Dremio + notebook feel slow

@@ -1,0 +1,9 @@
+# Shell scripts run inside Linux containers (setup/vault_init.sh is mounted as
+# /vault-init.sh), so they must stay LF even on Windows checkouts.
+*.sh text eol=lf
+
+# Windows launchers must stay CRLF.
+*.bat text eol=crlf
+
+# Keep this file LF: a stray CR would corrupt the patterns above.
+.gitattributes text eol=lf

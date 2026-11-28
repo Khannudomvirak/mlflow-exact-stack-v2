@@ -87,6 +87,8 @@ Vault issues each service its own identity and credentials; MinIO stores files; 
   - `Presentation_Script.md` — readable speaker script with speaker order.
   - `Lakehouse_Explainer.png` — one-image visual explainer.
   - `MLflow_Exact_Stack_V2_Presentation.pptx` — 8-slide deck; speaker notes are the original talk track, and slide 6 was added after the recording.
+  - `Vault_Week_Summary_Presentation.pptx` — 8-slide recap of the Vault week, closing on a Thank You slide.
+  - `Vault_Week_Summary_Script.md` — speaker script for that recap deck: 8 slides, 4:00, with Q&A answers.
   - `README.md` — technical reference.
   - `AGENTS.md` — this file.
 
@@ -293,6 +295,7 @@ Restart Tableau, open `Tableau_Churn_Dashboard.twb`, enter the Dremio `admin123`
 - Readable script: `Presentation_Script.md`.
 - Visual explainer: `Lakehouse_Explainer.png`.
 - Slide 8 is the Q&A prep.
+- `Vault_Week_Summary_Presentation.pptx` + `Vault_Week_Summary_Script.md` are the separate week recap, not the graded deck: same theme, 8 slides, 4:00 across four speakers, ending on a Thank You slide.
 - Slide 6 (`05 · SECURITY`, "Who is allowed to read what") is the dedicated Vault slide: three cards (identity per service, read only its own secret, own bucket and user) plus a verified-live banner. It was added after the recorded talk, so it exists in the deck and script but not in the original video. Vault also appears on slide 4 (re-measured numbers and a memory row) and in the notes of slides 2, 3, 4, 6, 7 and 8. Keep all of it in step with `Presentation_Script.md`.
 
 Speaker order and timings:
